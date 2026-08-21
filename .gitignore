@@ -1,0 +1,12 @@
+# KiCad generated files
+*.rpt
+*-backups/
+fp-info-cache
+*.bak
+*.kicad_prl
+*.lck
+_autosave-*
+__pycache__/
+
+# placement render scratch
+z280-s100-placement*
