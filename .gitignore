@@ -10,3 +10,9 @@ __pycache__/
 
 # placement render scratch
 z280-s100-placement*
+
+# freerouting / autorouter scratch
+*.dsn
+
+# generated PDF renders
+*.pdf
