@@ -29,6 +29,12 @@ HOLD=74, RESET=75, INT=73, NMI=12, ADSB=22, DODSB=23, SDSB=18, CDSB=19,
 DO0=36/DO1=35/DO2=88/DO3=89/DO4=38/DO5=39/DO6=40/DO7=90,
 DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
 
+## Serial console (J9, 2×5 IDC)
+- J9 pin 1 = RS-232 TX (from MAX232 T1OUT), pin 2 = RS-232 RX (to MAX232 R1IN),
+  pins 3–10 = GND.  Cable pin 1 → DB9-3, pin 2 → DB9-2, any GND → DB9-5.
+- MAX232 (U13) still needs its five charge-pump caps (C1+/C1-/C2+/C2- + V+/V-
+  bypass, ≈ 0.1 µF each) — not yet placed.
+
 ## Wiring gaps (currently labeled but not fully connected)
 - Interrupts: S100_INT / S100_NMI route through the CPLD to Z_INT / Z_NMI.
 - Reset OR: DS1813 reset and S100_RESET must be OR'd before Z_RESET (diode-OR or

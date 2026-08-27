@@ -284,6 +284,11 @@ PARTS["JTAG"] = ("J", "JTAG header (1x6)", "Connector_PinHeader_2.54mm:PinHeader
     [("1","TCK","B"),("2","TMS","B"),("3","TDI","B"),("4","TDO","B"),
      ("5","GND","W"),("6","VCC","W")])
 
+PARTS["SERIAL"] = ("J", "Serial header (2x5)", "Connector_PinHeader_2.54mm:PinHeader_2x05_P2.54mm_Vertical",
+    [("1","RS232_TX","P"),("2","RS232_RX","P"),("3","GND","W"),("4","GND","W"),
+     ("5","GND","W"),("6","GND","W"),("7","GND","W"),("8","GND","W"),
+     ("9","GND","W"),("10","GND","W")])
+
 PARTS["R"] = ("R", "1k", "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
     [("1","1","P"),("2","2","P")])
 
@@ -316,6 +321,32 @@ S100 = [("1","+8V","W"),("2","+16V","W"),("3","XRDY","B"),("4","VI0","P"),
 PARTS["S100_100"] = ("J", "S-100 edge connector (100-pin)", "Connector_Edge", S100)
 
 # ----------------------------------------------------------------------------
+# Symbol body width (mm). Pin names are drawn *inside* the body, so a part whose
+# names are long (Z280's CTIO0/GREQ, the CPLDs' MASTER_ACTIVE) runs the left- and
+# right-hand names into each other across the middle at the default width. These
+# three get 1.5x. Keep every value a multiple of 2.54 so pins stay on the 0.1"
+# grid, and note body_width() is used by both emit_symbol() and pin_abs() — they
+# must agree or the wires and labels detach from the pins.
+BODY_W_DEFAULT = 20.32
+BODY_W = {"Z280": 30.48, "ATF1508": 30.48, "ATF1508B": 30.48}
+
+def body_width(name):
+    return BODY_W.get(name, BODY_W_DEFAULT)
+
+# Reference/Value offsets from the symbol origin, in symbol space (+Y up). Both
+# clear the body top edge (+2.54); anything at or below it lands on the pin
+# names. HEADROOM is the schematic-space vertical space a placement must leave
+# above it for these two lines of text.
+TEXT_REF_DY = 7.62
+TEXT_VAL_DY = 5.08
+HEADROOM = TEXT_REF_DY + 2.54
+
+def body_bottom(name):
+    """Schematic-space distance from a symbol's origin down to its body bottom."""
+    pins = PARTS[name][3]
+    n = len(pins); half = (n + 1) // 2
+    return max(half, n - half) * 2.54
+
 def body_metrics(name):
     pins = PARTS[name][3]
     n = len(pins); half = (n + 1) // 2
@@ -332,13 +363,16 @@ def emit_symbol(name, full_name=None):
         full_name = name
     ref, value, fp, pins = PARTS[name]
     n = len(pins); half = (n + 1) // 2
-    body_w = 20.32; max_side = max(half, n - half)
+    body_w = body_width(name); max_side = max(half, n - half)
     L = []
     L.append('  (symbol "%s"' % full_name)
     L.append('    (pin_names (offset 1.016))')
     L.append('    (exclude_from_sim no) (in_bom yes) (on_board yes)')
-    L.append('    (property "Reference" "%s" (at 0 %.2f 0) (effects (font (size 1.27 1.27))))' % (ref, 5.08))
-    L.append('    (property "Value" "%s" (at 0 %.2f 0) (effects (font (size 1.27 1.27))))' % (value, -max_side*2.54 - 2.54))
+    # Both fields go above the body (symbol space: +Y is up, body top is +2.54).
+    # The body interior is filled edge-to-edge with pin names, so a field placed
+    # on or inside the rectangle is unreadable. Reference on top, Value beneath.
+    L.append('    (property "Reference" "%s" (at 0 %.2f 0) (effects (font (size 1.27 1.27))))' % (ref, TEXT_REF_DY))
+    L.append('    (property "Value" "%s" (at 0 %.2f 0) (effects (font (size 1.27 1.27))))' % (value, TEXT_VAL_DY))
     L.append('    (property "Footprint" "%s" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))' % fp)
     L.append('    (property "Datasheet" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))')
     L.append('    (symbol "%s_0_1"' % name)
@@ -358,7 +392,7 @@ def emit_symbol(name, full_name=None):
 def pin_abs(name, num, sym_x, sym_y):
     ref, value, fp, pins = PARTS[name]
     n = len(pins); half = (n + 1) // 2
-    body_w = 20.32
+    body_w = body_width(name)
     for i, (pn, nm, e) in enumerate(pins):
         if str(pn) == str(num):
             y = -(i % half) * 2.54
@@ -394,10 +428,12 @@ def emit_symbol_instance(name, ref, sym_x, sym_y, nets):
     _ref, value, fp, pins = PARTS[name]
     lines = ['  (symbol (lib_id "z280s100:%s")' % name]
     lines.append('    (at %.2f %.2f 0)' % (sym_x, sym_y))
-    lines.append('    (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced yes)')
+    # fields_autoplaced no: these positions are deliberate, don't let KiCad
+    # re-flow them back onto the body.
+    lines.append('    (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced no)')
     lines.append('    (uuid "%s")' % uid())
-    lines.append('    (property "Reference" "%s" (at %.2f %.2f 0) (effects (font (size 1.27 1.27))))' % (ref, sym_x, sym_y - 2.54))
-    lines.append('    (property "Value" "%s" (at %.2f %.2f 0) (effects (font (size 1.27 1.27))))' % (value, sym_x, sym_y + 2.54))
+    lines.append('    (property "Reference" "%s" (at %.2f %.2f 0) (effects (font (size 1.27 1.27))))' % (ref, sym_x, sym_y - TEXT_REF_DY))
+    lines.append('    (property "Value" "%s" (at %.2f %.2f 0) (effects (font (size 1.27 1.27))))' % (value, sym_x, sym_y - TEXT_VAL_DY))
     lines.append('    (property "Footprint" "%s" (at %.2f %.2f 0) (effects (font (size 1.27 1.27)) hide))' % (fp, sym_x, sym_y))
     lines.append('    (property "Datasheet" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))')
     for num, nm, e in pins:
@@ -512,32 +548,32 @@ def single_sheet():
          "34":"+5V","46":"Z_TXD","48":"Z_RXD",
          "18":"+5V","19":"+5V",
          "1":"GND","35":"GND","51":"GND","53":"GND"}
-    inst.append(emit_symbol_instance("Z280", "U1", 38.1, 25.4, z))
+    inst.append(emit_symbol_instance("Z280", "U1", 88.90, 25.4, z))
     latch_lo = {"1":"GND","2":"AD0","3":"AD1","4":"AD2","5":"AD3","6":"AD4",
                 "7":"AD5","8":"AD6","9":"AD7","10":"GND","11":"LATCH_LE",
                 "12":"LA0","13":"LA1","14":"LA2","15":"LA3","16":"LA4",
                 "17":"LA5","18":"LA6","19":"LA7","20":"+5V"}
-    inst.append(emit_symbol_instance("74HC573", "U3", 38.1, 127, latch_lo))
+    inst.append(emit_symbol_instance("74HC573", "U3", 88.90, 127, latch_lo))
     latch_hi = {"1":"GND","2":"AD8","3":"AD9","4":"AD10","5":"AD11","6":"AD12",
                 "7":"AD13","8":"AD14","9":"AD15","10":"GND","11":"LATCH_LE",
                 "12":"LA8","13":"LA9","14":"LA10","15":"LA11","16":"LA12",
                 "17":"LA13","18":"LA14","19":"LA15","20":"+5V"}
-    inst.append(emit_symbol_instance("74HC573", "U4", 38.1, 165.1, latch_hi))
+    inst.append(emit_symbol_instance("74HC573", "U4", 88.90, 165.1, latch_hi))
     # CPLD
-    inst.append(emit_symbol_instance("ATF1508", "U2", 101.6, 25.4, cpld_a_nets()))
-    inst.append(emit_symbol_instance("ATF1508B", "U24", 101.6, 127.0, cpld_b_nets()))
+    inst.append(emit_symbol_instance("ATF1508", "U2", 162.56, 25.4, cpld_a_nets()))
+    inst.append(emit_symbol_instance("ATF1508B", "U24", 162.56, 152.4, cpld_b_nets()))
     # Memory: U9/U11 = even/LO on AD8-15, U10/U12 = odd/HI on AD0-7
-    inst.append(emit_symbol_instance("IS61C5128AS", "U9", 165.1, 25.4,
+    inst.append(emit_symbol_instance("IS61C5128AS", "U9", 231.14, 25.4,
                  sram_nets([f"AD{i}" for i in range(8,16)], "MEM_WE_L", "MEM_CE0")))
-    inst.append(emit_symbol_instance("IS61C5128AS", "U10", 165.1, 76.2,
+    inst.append(emit_symbol_instance("IS61C5128AS", "U10", 231.14, 76.2,
                  sram_nets([f"AD{i}" for i in range(8)], "MEM_WE_H", "MEM_CE0")))
-    inst.append(emit_symbol_instance("IS61C5128AS", "U22", 165.1, 127.0,
+    inst.append(emit_symbol_instance("IS61C5128AS", "U22", 231.14, 127.0,
                  sram_nets([f"AD{i}" for i in range(8,16)], "MEM_WE_L", "MEM_CE1")))
-    inst.append(emit_symbol_instance("IS61C5128AS", "U23", 165.1, 177.8,
+    inst.append(emit_symbol_instance("IS61C5128AS", "U23", 231.14, 177.8,
                  sram_nets([f"AD{i}" for i in range(8)], "MEM_WE_H", "MEM_CE1")))
-    inst.append(emit_symbol_instance("SST27SF020", "U11", 228.6, 25.4,
+    inst.append(emit_symbol_instance("SST27SF020", "U11", 294.64, 25.4,
                  flash_nets([f"AD{i}" for i in range(8,16)])))
-    inst.append(emit_symbol_instance("SST27SF020", "U12", 228.6, 76.2,
+    inst.append(emit_symbol_instance("SST27SF020", "U12", 294.64, 76.2,
                  flash_nets([f"AD{i}" for i in range(8)])))
     # Flash upper-6-pin jumper area (shared by U11/U12). Default = 27SF020;
     # for a smaller EPROM move/remove the A15/A16/A17 jumpers. A 28-pin part
@@ -550,53 +586,57 @@ def single_sheet():
             ("J6", "FLASH_A17", "A18"),
             ("J7", "FLASH_PGM", "+5V"),
             ("J8", "FLASH_VDD", "+5V")]):
-        inst.append(emit_symbol_instance("JP", jp, 292.1, 25.4 + i * 5.08, {"1": a, "2": b}))
+        inst.append(emit_symbol_instance("JP", jp, 358.14, 25.4 + i * 12.7, {"1": a, "2": b}))
     # S-100 connector (the byte-steered data path lives inside CPLD B / U24)
-    inst.append(emit_symbol_instance("S100_100", "J1", 355.6, 25.4, s100_nets()))
+    inst.append(emit_symbol_instance("S100_100", "J1", 421.64, 25.4, s100_nets()))
     # Power / clock / reset / console
-    inst.append(emit_symbol_instance("LM7805", "U15", 228.6, 139.7,
+    inst.append(emit_symbol_instance("LM7805", "U15", 294.64, 139.7,
                  {"1":"+8V","2":"GND","3":"+5V"}))
-    inst.append(emit_symbol_instance("Crystal", "Y1", 228.6, 127.0,
+    inst.append(emit_symbol_instance("Crystal", "Y1", 294.64, 127.0,
                  {"1":"XTALI","2":"XTALO"}))
-    inst.append(emit_symbol_instance("DS1813", "U14", 228.6, 165.1,
+    inst.append(emit_symbol_instance("DS1813", "U14", 294.64, 165.1,
                  {"1":"GND","2":"Z_RESET","3":"+5V"}))
-    inst.append(emit_symbol_instance("MAX232", "U13", 292.1, 177.8,
+    inst.append(emit_symbol_instance("MAX232", "U13", 358.14, 177.8,
                  {"1":"MAX_C1P","2":"MAX_VP","3":"MAX_C1M","4":"MAX_C2P",
                   "5":"MAX_C2M","6":"MAX_VM","7":"NC","8":"NC","9":"NC",
-                  "10":"NC","11":"Z_TXD","12":"NC","13":"Z_RXD",
+                  "10":"NC","11":"Z_TXD","12":"Z_RXD","13":"MAX_RS232_RX",
                   "14":"MAX_RS232_TX","15":"GND","16":"+5V"}))
+    # Serial console header: RS-232 TX/RX + grounds, 2x5 IDC for a DB9 pigtail
+    inst.append(emit_symbol_instance("SERIAL", "J9", 358.14, 215.9,
+                 {"1":"MAX_RS232_TX","2":"MAX_RS232_RX","3":"GND","4":"GND",
+                  "5":"GND","6":"GND","7":"GND","8":"GND","9":"GND","10":"GND"}))
     # S-100 drive buffers (74HCT245): address + status + control
-    inst.append(emit_symbol_instance("74HCT245", "U16", 406.4, 25.4,
+    inst.append(emit_symbol_instance("74HCT245", "U16", 502.92, 25.4,
                  buf_nets(["BYTE_SEL"] + [f"LA{i}" for i in range(1,8)], [f"S100_A{i}" for i in range(8)], "S100_A_DIR", "S100_A_OE")))
-    inst.append(emit_symbol_instance("74HCT245", "U17", 406.4, 63.5,
+    inst.append(emit_symbol_instance("74HCT245", "U17", 502.92, 63.5,
                  buf_nets([f"LA{i}" for i in range(8,16)], [f"S100_A{i}" for i in range(8,16)], "S100_A_DIR", "S100_A_OE")))
-    inst.append(emit_symbol_instance("74HCT245", "U18", 406.4, 101.6,
+    inst.append(emit_symbol_instance("74HCT245", "U18", 502.92, 101.6,
                  buf_nets([f"A{i}" for i in range(16,24)], [f"S100_A{i}" for i in range(16,24)], "S100_A_DIR", "S100_A_OE")))
-    inst.append(emit_symbol_instance("74HCT245", "U19", 406.4, 139.7,
+    inst.append(emit_symbol_instance("74HCT245", "U19", 502.92, 139.7,
                  buf_nets(["CPLD_sMEMR","CPLD_sWO","CPLD_sINP","CPLD_sOUT","CPLD_sINTA","CPLD_sHLTA","CPLD_sXTRQ"],
                           ["S100_sMEMR","S100_sWO","S100_sINP","S100_sOUT","S100_sINTA","S100_sHLTA","S100_sXTRQ"],
                           "S100_SC_DIR", "S100_S_OE")))
-    inst.append(emit_symbol_instance("74HCT245", "U20", 406.4, 177.8,
+    inst.append(emit_symbol_instance("74HCT245", "U20", 502.92, 177.8,
                  buf_nets(["CPLD_pSYNC","CPLD_pSTVAL","CPLD_pDBIN","CPLD_pWR"],
                           ["S100_pSYNC","S100_pSTVAL","S100_pDBIN","S100_pWR"],
                           "S100_SC_DIR", "S100_C_OE")))
     # pHLDA is the permanent master's *exclusive* output, asserted while a TMA
     # holds the bus -- opposite direction from pSYNC/pDBIN/pWR -- so it gets its
     # own always-on driver (74HCT245 strapped A->B). Unused A inputs tied low.
-    inst.append(emit_symbol_instance("74HCT245", "U21", 406.4, 215.9,
+    inst.append(emit_symbol_instance("74HCT245", "U21", 502.92, 215.9,
                  {"1":"+5V","10":"GND","19":"GND","20":"+5V",
                   "2":"CPLD_pHLDA","11":"S100_pHLDA",
                   "3":"GND","4":"GND","5":"GND","6":"GND","7":"GND","8":"GND","9":"GND"}))
     # Local pull-ups for the open-drain ready lines (the backplane also pulls
     # these up; 1k in parallel just strengthens it and keeps the card sane solo).
-    inst.append(emit_symbol_instance("R", "R1", 368.3, 241.3, {"1":"+5V","2":"S100_pRDY"}))
-    inst.append(emit_symbol_instance("R", "R2", 368.3, 254.0, {"1":"+5V","2":"S100_XRDY"}))
+    inst.append(emit_symbol_instance("R", "R1", 434.34, 241.3, {"1":"+5V","2":"S100_pRDY"}))
+    inst.append(emit_symbol_instance("R", "R2", 434.34, 254.0, {"1":"+5V","2":"S100_XRDY"}))
     # SLAVE_ONLY strap: pull down (default = master); jumper to +5V for permanent slave.
-    inst.append(emit_symbol_instance("R", "R3", 368.3, 266.7, {"1":"GND","2":"SLAVE_ONLY"}))
+    inst.append(emit_symbol_instance("R", "R3", 434.34, 266.7, {"1":"GND","2":"SLAVE_ONLY"}))
     # SIXTN is open-collector (wired-OR); pull up like the ready lines.
-    inst.append(emit_symbol_instance("R", "R4", 368.3, 279.4, {"1":"+5V","2":"S100_SIXTN"}))
+    inst.append(emit_symbol_instance("R", "R4", 434.34, 279.4, {"1":"+5V","2":"S100_SIXTN"}))
     # JTAG programming header: TCK/TMS parallel, TDI->A->B->TDO chained
-    inst.append(emit_symbol_instance("JTAG", "J2", 406.4, 292.1,
+    inst.append(emit_symbol_instance("JTAG", "J2", 502.92, 292.1,
                  {"1":"JTAG_TCK","2":"JTAG_TMS","3":"JTAG_TDI","4":"JTAG_TDO","5":"GND","6":"+5V"}))
     return emit_sheet_file("Z280 S-100 CPU card", inst)
 
@@ -635,6 +675,12 @@ HOLD=74, RESET=75, INT=73, NMI=12, ADSB=22, DODSB=23, SDSB=18, CDSB=19,
 DO0=36/DO1=35/DO2=88/DO3=89/DO4=38/DO5=39/DO6=40/DO7=90,
 DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
 
+## Serial console (J9, 2×5 IDC)
+- J9 pin 1 = RS-232 TX (from MAX232 T1OUT), pin 2 = RS-232 RX (to MAX232 R1IN),
+  pins 3–10 = GND.  Cable pin 1 → DB9-3, pin 2 → DB9-2, any GND → DB9-5.
+- MAX232 (U13) still needs its five charge-pump caps (C1+/C1-/C2+/C2- + V+/V-
+  bypass, ≈ 0.1 µF each) — not yet placed.
+
 ## Wiring gaps (currently labeled but not fully connected)
 - Interrupts: S100_INT / S100_NMI route through the CPLD to Z_INT / Z_NMI.
 - Reset OR: DS1813 reset and S100_RESET must be OR'd before Z_RESET (diode-OR or
@@ -660,7 +706,14 @@ def main():
         "NOTES.md": NOTES,
     }
     for fn, content in files.items():
-        with open(os.path.join(OUT, fn), "w") as f:
+        path = os.path.join(OUT, fn)
+        # Once KiCad has opened the project it rewrites the .kicad_pro as JSON
+        # holding net classes and board settings; our stub would throw those
+        # away. Seed it only when it is missing.
+        if fn == "z280-s100.kicad_pro" and os.path.exists(path):
+            print("kept", fn, "(KiCad-managed)")
+            continue
+        with open(path, "w") as f:
             f.write(content)
         print("wrote", fn, len(content), "bytes")
 
