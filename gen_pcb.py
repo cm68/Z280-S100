@@ -218,6 +218,24 @@ def hdr_fp(ref, value, n, x, y, rot=0, pitch=2.54, size=1.6, drill=0.8):
     return "\n".join(L)
 
 
+def hdr_3x8_fp(ref, value, rows, pitch, x, y, rot=0):
+    """3-column x N-row 0.1" through-hole header (3*rows pins).
+
+    One row per config bit: col 0 = +5V (HIGH), col 1 = signal, col 2 = GND
+    (LOW). Pin 1 = top-left, numbered row-major (row, col -> row*3 + col + 1),
+    matching the JP3x8 schematic symbol so the netlist lands on the right pads.
+    """
+    L = [fp_open("HDR-3x8", ref, value, x, y, rot)]
+    w = 2 * pitch                       # 3 columns -> 2 pitches wide
+    h = (rows - 1) * pitch              # rows -> (rows-1) pitches tall
+    L.append(fp_rect_silk(-1.9, -1.9, w + 1.9, h + 1.9))
+    for r in range(rows):
+        for c in range(3):
+            L.append(pad_th(ref, str(r * 3 + c + 1), c * pitch, r * pitch))
+    L.append("  )")
+    return "\n".join(L)
+
+
 def pad_net_th(num, x, y, net, size=1.6, drill=0.8):
     """Through-hole pad wired to an explicit net (for parts not in the netlist)."""
     code = NETIDX.get(net, 0)
@@ -312,14 +330,7 @@ COMPONENTS = [
     ("U23", "74F521 flash win", "dip",  20, 0,   226, 120, 90),
     ("U24", "74F521 slave win", "dip",  20, 0,   252, 120, 90),
     ("U21", "74HCT244 BTI",     "dip",  20, 0,   172, 120, 90),
-    ("J10", "BTI AD0",          "hdr",  3,  2.54, 185, 108, 0),
-    ("J11", "BTI AD1",          "hdr",  3,  2.54, 195, 108, 0),
-    ("J12", "BTI AD2",          "hdr",  3,  2.54, 205, 108, 0),
-    ("J13", "BTI AD3",          "hdr",  3,  2.54, 215, 108, 0),
-    ("J14", "BTI AD4",          "hdr",  3,  2.54, 225, 108, 0),
-    ("J15", "BTI AD5",          "hdr",  3,  2.54, 235, 108, 0),
-    ("J16", "BTI AD6",          "hdr",  3,  2.54, 245, 108, 0),
-    ("J17", "BTI AD7",          "hdr",  3,  2.54, 255, 108, 0),
+    ("J10", "Config (3x8)",      "hdr3x8", 8, 2.54, 218, 110, 90),
     # console / power / clock / reset
     ("U14", "MAX232",           "dip",  16, 0,    20,  90,  0),
     ("J7",  "Serial (2x5)",     "libfp", "Connector_PinHeader_2.54mm:PinHeader_2x05_P2.54mm_Vertical", 0, 16, 40, 0),
@@ -368,6 +379,8 @@ def build_comp(comp):
         return library_fp(p1, ref, value, x, y, rot)
     if kind == "dip":
         return dip_fp(ref, value, p1, x, y, bool(p2), rot)
+    if kind == "hdr3x8":
+        return hdr_3x8_fp(ref, value, p1, p2, x, y, rot)
     # Tight-pitch inline parts (e.g. TO-92 at 1.27 mm) need pads smaller than the
     # default 1.6 mm, otherwise adjacent pins short out.
     if p2 < 2.0:

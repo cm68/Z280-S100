@@ -37,11 +37,11 @@ DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
 - MAX232 (U14) still needs its five charge-pump caps (C1+/C1-/C2+/C2- + V+/V-
   bypass, ≈ 0.1 µF each) — not yet placed.
 
-## Bus timing straps (J10–J17 + U21)
-- Eight 3-pin jumpers set the value the Z280 samples on AD0-7 at reset to load
-  its Bus Timing & Initialization register (low-8M wait states + clock divider).
-  Each jumper: centre (pin 2) → a 74HCT244 input, pin 1 = +5V, pin 3 = GND.
-  Shunt centre→+5V = 1, centre→GND = 0.
+## Bus timing straps (J10 3x8 header + U21)
+- One 3x8 header (24 pins) sets the value the Z280 samples on AD0-7 at reset to
+  load its Bus Timing & Initialization register (low-8M wait states + clock
+  divider). One row per bit: col 0 = +5V (HIGH), col 1 = signal (BTI_ADn),
+  col 2 = GND (LOW). Shunt col1→+5V = 1, col1→GND = 0.
 - The 74HCT244 (U21) tri-state driver presents that value on AD0-7 during the
   reset-config window: both /OE (pins 1, 19) tie to CFG_OE from the control
   CPLD. The CPLD asserts WAIT >=4 clocks before reset rises and holds it 15
@@ -50,7 +50,7 @@ DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
   through the rising-edge sample and its hold time.
 - Default strap = 0b10001110 (AD7..AD0; AD0 = BTI bit 0): direct clock on
   XTAL1, no bootstrap, no multiprocessor, 3 wait states, bus clock = CPU clock.
-  J17/J13/J12/J11 = high (+5V), J16/J15/J14/J10 = low (GND). Every bit stays
+  AD7/AD3/AD2/AD1 = high (+5V), AD6/AD5/AD4/AD0 = low (GND). Every bit stays
   jumperable, so the wait field and clock divider can be changed in place.
 - Reset must be held low >=512 XTAL1 clocks (~21 us at 24 MHz); the DS1813's
   ~100 ms power-on reset easily satisfies this.

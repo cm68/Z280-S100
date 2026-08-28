@@ -327,6 +327,16 @@ PARTS["R"] = ("R", "1k", "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Hor
 PARTS["JP3"] = ("J", "Jumper (3-pin header)", "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
     [("1","HIGH","P"),("2","SEL","P"),("3","LOW","P")])
 
+# Single 3x8 config header (24 pins) replacing eight 3-pin jumpers. One row per
+# BTI bit: col 0 = +5V (HIGH), col 1 = signal (BTI_ADn), col 2 = GND (LOW).
+# Pin 1 = top-left, numbered row-major, matching the PCB footprint.
+_JP3x8 = []
+for _i in range(8):
+    _JP3x8.append((str(3 * _i + 1), "HIGH", "P"))
+    _JP3x8.append((str(3 * _i + 2), "BTI_AD%d" % _i, "P"))
+    _JP3x8.append((str(3 * _i + 3), "LOW", "P"))
+PARTS["JP3x8"] = ("J", "Config header (3x8)", "Connector_PinHeader_2.54mm:PinHeader_3x08_P2.54mm_Vertical", _JP3x8)
+
 S100 = [("1","+8V","W"),("2","+16V","W"),("3","XRDY","B"),("4","VI0","P"),
     ("5","VI1","P"),("6","VI2","P"),("7","VI3","P"),("8","VI4","P"),
     ("9","VI5","P"),("10","VI6","P"),("11","VI7","P"),("12","NMI","B"),
@@ -669,12 +679,14 @@ def single_sheet():
     # load the BTI register (low-8M wait states + the clock divider). A 74HCT244
     # tri-state driver presents the jumper-selected value on AD0-7 while Z_RESET
     # is asserted: both /OE are active low, so the part drives during reset and
-    # goes high-Z the moment reset deasserts. Jumpers J10-J17 select each bit.
+    # goes high-Z the moment reset deasserts. One 3x8 header (J10) selects each
+    # bit: col 0 = +5V, col 1 = BTI_ADn, col 2 = GND.
+    _jp3x8_nets = {}
     for i in range(8):
-        node = f"BTI_AD{i}"
-        y = 190.0 + i * 10.0
-        inst.append(emit_symbol_instance("JP3", f"J{10+i}", 560.0, y,
-                     {"1":"+5V", "2":node, "3":"GND"}))
+        _jp3x8_nets[str(3 * i + 1)] = "+5V"
+        _jp3x8_nets[str(3 * i + 2)] = "BTI_AD%d" % i
+        _jp3x8_nets[str(3 * i + 3)] = "GND"
+    inst.append(emit_symbol_instance("JP3x8", "J10", 560.0, 190.0, _jp3x8_nets))
     # The Z280 latches AD0-7 on the rising edge of RESET (p.545) and needs WAIT
     # held for 6 clocks past that edge (p.541). The control CPLD holds both WAIT
     # and this 244's /OE through a 6-clock counter, so AD0-7 stays driven for the
@@ -738,11 +750,11 @@ DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
 - MAX232 (U14) still needs its five charge-pump caps (C1+/C1-/C2+/C2- + V+/V-
   bypass, ≈ 0.1 µF each) — not yet placed.
 
-## Bus timing straps (J10–J17 + U21)
-- Eight 3-pin jumpers set the value the Z280 samples on AD0-7 at reset to load
-  its Bus Timing & Initialization register (low-8M wait states + clock divider).
-  Each jumper: centre (pin 2) → a 74HCT244 input, pin 1 = +5V, pin 3 = GND.
-  Shunt centre→+5V = 1, centre→GND = 0.
+## Bus timing straps (J10 3x8 header + U21)
+- One 3x8 header (24 pins) sets the value the Z280 samples on AD0-7 at reset to
+  load its Bus Timing & Initialization register (low-8M wait states + clock
+  divider). One row per bit: col 0 = +5V (HIGH), col 1 = signal (BTI_ADn),
+  col 2 = GND (LOW). Shunt col1→+5V = 1, col1→GND = 0.
 - The 74HCT244 (U21) tri-state driver presents that value on AD0-7 during the
   reset-config window: both /OE (pins 1, 19) tie to CFG_OE from the control
   CPLD. The CPLD asserts WAIT >=4 clocks before reset rises and holds it 15
@@ -751,7 +763,7 @@ DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
   through the rising-edge sample and its hold time.
 - Default strap = 0b10001110 (AD7..AD0; AD0 = BTI bit 0): direct clock on
   XTAL1, no bootstrap, no multiprocessor, 3 wait states, bus clock = CPU clock.
-  J17/J13/J12/J11 = high (+5V), J16/J15/J14/J10 = low (GND). Every bit stays
+  AD7/AD3/AD2/AD1 = high (+5V), AD6/AD5/AD4/AD0 = low (GND). Every bit stays
   jumperable, so the wait field and clock divider can be changed in place.
 - Reset must be held low >=512 XTAL1 clocks (~21 us at 24 MHz); the DS1813's
   ~100 ms power-on reset easily satisfies this.
