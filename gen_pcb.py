@@ -98,35 +98,68 @@ def _u():
 # pad / footprint emitters
 # ============================================================================
 
-def pad_th(ref, num, x, y, size=1.6, drill=0.8):
-    return ('    (pad "%s" thru_hole roundrect (at %.4f %.4f) (size %.2f %.2f)'
-            ' (drill %.2f) (layers "*.Cu" "*.Mask") %s)'
-            % (num, x, y, size, size, drill, netref(ref, num)))
+def pad_th(ref, num, x, y, size=1.6, drill=0.8, shape="circle"):
+    return ('    (pad "%s" thru_hole %s\n'
+            '      (at %.4f %.4f)\n'
+            '      (size %.2f %.2f)\n'
+            '      (drill %.2f)\n'
+            '      (layers "*.Cu" "*.Mask")\n'
+            '      (remove_unused_layers no)\n'
+            '      %s\n'
+            '      (uuid "%s")\n'
+            '    )'
+            % (num, shape, x, y, size, size, drill, netref(ref, num),
+               str(uuid.uuid4())))
 
 
 def pad_smd(ref, num, x, y, w, h, layers):
-    return ('    (pad "%s" smd rect (at %.4f %.4f) (size %.2f %.2f)'
-            ' (layers %s) %s)'
-            % (num, x, y, w, h, layers, netref(ref, num)))
+    return ('    (pad "%s" smd rect\n'
+            '      (at %.4f %.4f)\n'
+            '      (size %.2f %.2f)\n'
+            '      (layers %s)\n'
+            '      %s\n'
+            '      (uuid "%s")\n'
+            '    )'
+            % (num, x, y, w, h, layers, netref(ref, num),
+               str(uuid.uuid4())))
 
 
 def fp_open(name, ref, value, x, y, rot=0):
-    return ('  (footprint "%s" (layer "F.Cu") (at %.4f %.4f %d)\n'
+    return ('  (footprint "%s" (layer "F.Cu")\n'
+            '    (uuid "%s")\n'
+            '    (at %.4f %.4f %d)\n'
             '    (property "Reference" "%s" (at 0 0 0) (layer "F.SilkS")\n'
             '      (effects (font (size 1 1))))\n'
             '    (property "Value" "%s" (at 0 0 0) (layer "F.Fab")\n'
             '      (effects (font (size 1 1))))'
-            % (name, x, y, rot, ref, value))
+            % (name, str(uuid.uuid4()), x, y, rot, ref, value))
+
+
+def fp_rect_silk(x1, y1, x2, y2):
+    """Four silkscreen fp_lines forming a body rectangle (local coords)."""
+    pts = [(x1, y1), (x2, y1), (x2, y2), (x1, y2), (x1, y1)]
+    return "\n".join(
+        '    (fp_line (start %.3f %.3f) (end %.3f %.3f)'
+        ' (stroke (width 0.15) (type default)) (layer "F.SilkS"))'
+        % (a, b, c, d) for (a, b), (c, d) in zip(pts, pts[1:]))
 
 
 def dip_fp(ref, value, n, x, y, wide=False, rot=0):
-    """Through-hole DIP: 2 rows of n/2, 2.54 mm pitch. Pin 1 top-left."""
+    """Through-hole DIP: 2 rows of n/2, 2.54 mm pitch. Pin 1 top-left (square
+    pad + silkscreen notch on the pin-1 side)."""
     row = (15.24 if wide else 7.62) / 2.0
     half = n // 2
     L = [fp_open("DIP-%d" % n, ref, value, x, y, rot)]
+    by = (half - 1) / 2.0 * 2.54 + 1.5
+    L.append(fp_rect_silk(-(row + 1.27), -by, row + 1.27, by))
+    # Notch on the pin-1 side: a 1 mm radius semicircle cut into the top edge.
+    L.append('    (fp_arc (start -1.0 %.3f) (mid 0 %.3f) (end 1.0 %.3f)'
+             ' (stroke (width 0.15) (type default)) (layer "F.SilkS"))'
+             % (by, by - 1.0, by))
     for i in range(half):
         py = (half - 1) / 2.0 * 2.54 - i * 2.54
-        L.append(pad_th(ref, str(i + 1), -row, py))
+        shape1 = "rect" if i == 0 else "circle"  # pin 1 is square
+        L.append(pad_th(ref, str(i + 1), -row, py, shape=shape1))
         L.append(pad_th(ref, str(i + 1 + half), row, -py))
     L.append("  )")
     return "\n".join(L)
@@ -148,10 +181,10 @@ def library_fp(fpid, ref, value, x, y, rot=0):
     for field in ("version", "generator", "generator_version", "descr", "tags"):
         txt = re.sub(r'\n\s*\(%s [^\n)]*\)' % field, "", txt)
 
-    # Board placement (tstamp + position) goes right after the layer.
+    # Board placement (uuid + position) goes right after the layer.
     txt = re.sub(r'\(layer "F\.Cu"\)',
-                 '(layer "F.Cu")\n  (tstamp %s)\n  (at %.4f %.4f %d)'
-                 % (_u(), x, y, rot), txt, count=1)
+                 '(layer "F.Cu")\n  (uuid "%s")\n  (at %.4f %.4f %d)'
+                 % (str(uuid.uuid4()), x, y, rot), txt, count=1)
 
     # Point the reference/value text at this instance.
     txt = re.sub(r'\(property "Reference" "[^"]*"',
@@ -161,24 +194,52 @@ def library_fp(fpid, ref, value, x, y, rot=0):
     txt = re.sub(r'\(fp_text user "\$\{REFERENCE\}"',
                  '(fp_text user "%s"' % ref, txt, count=1)
 
-    # Drop library-only pad fields, then splice each pad's net in.
-    txt = re.sub(r'\n\s*\(remove_unused_layers no\)', "", txt)
+    # Keep the library pad's (remove_unused_layers no); its uuid is a
+    # library-scope id, so strip it and re-add a fresh board uuid with the net.
     txt = re.sub(r'\n\s*\(uuid "[0-9a-f-]+"\)', "", txt)
 
     def pad_net(m):
-        return m.group(0)[:-1].rstrip() + " " + netref(ref, m.group(1)) + ")"
+        return (m.group(0)[:-1].rstrip() + '\n      ' + netref(ref, m.group(1))
+                + '\n      (uuid "%s"))' % str(uuid.uuid4()))
 
     txt = re.sub(r'\(pad "(\d+)" thru_hole (?:rect|circle|roundrect)(.*?)\n\s*\)',
                  pad_net, txt, flags=re.S)
     return txt
 
 
-def hdr_fp(ref, value, n, x, y, rot=0, pitch=2.54):
+def hdr_fp(ref, value, n, x, y, rot=0, pitch=2.54, size=1.6, drill=0.8):
     """Through-hole inline part (TO-220/TO-92/crystal/header/resistor)."""
     L = [fp_open("HDR-%d" % n, ref, value, x, y, rot)]
     half = (n - 1) * pitch / 2.0
+    L.append(fp_rect_silk(-(half + 1.27), -1.9, half + 1.27, 1.9))
     for i in range(n):
-        L.append(pad_th(ref, str(i + 1), -half + i * pitch, 0))
+        L.append(pad_th(ref, str(i + 1), -half + i * pitch, 0, size=size, drill=drill))
+    L.append("  )")
+    return "\n".join(L)
+
+
+def pad_net_th(num, x, y, net, size=1.6, drill=0.8):
+    """Through-hole pad wired to an explicit net (for parts not in the netlist)."""
+    code = NETIDX.get(net, 0)
+    return ('    (pad "%s" thru_hole circle\n'
+            '      (at %.4f %.4f)\n'
+            '      (size %.2f %.2f)\n'
+            '      (drill %.2f)\n'
+            '      (layers "*.Cu" "*.Mask")\n'
+            '      (remove_unused_layers no)\n'
+            '      (net %d "%s")\n'
+            '      (uuid "%s")\n'
+            '    )'
+            % (num, x, y, size, size, drill, code, net, str(uuid.uuid4())))
+
+
+def cap_fp(ref, value, net1, net2, x, y, rot=0, pitch=2.54):
+    """2-pin through-hole capacitor wired between net1 and net2."""
+    half = pitch / 2.0
+    L = [fp_open("CAP-2", ref, value, x, y, rot)]
+    L.append(fp_rect_silk(-(half + 1.5), -2.5, half + 1.5, 2.5))
+    L.append(pad_net_th("1", -half, 0, net1))
+    L.append(pad_net_th("2", half, 0, net2))
     L.append("  )")
     return "\n".join(L)
 
@@ -189,8 +250,10 @@ def edge_connector():
     wide 2.794 mm pads; their centres sit 0.508 mm farther out so the 0.125"
     pitch holds between finger *edges*, not centres. A silkscreen rectangle
     marks the connector body."""
-    L = ['  (footprint "S100_MALE" (layer "F.Cu") (at %.4f %.4f)'
-         % (CONN_X, CONN_Y),
+    L = ['  (footprint "S100_MALE" (layer "F.Cu")\n'
+         '    (uuid "%s")\n'
+         '    (at %.4f %.4f)'
+         % (str(uuid.uuid4()), CONN_X, CONN_Y),
          '    (property "Reference" "J8" (at 0 -11.43 0) (layer "F.SilkS")'
          '      (effects (font (size 1.524 1.524))))',
          '    (property "Value" "S-100 edge" (at 0 -11.43 0) (layer "F.Fab")'
@@ -209,12 +272,8 @@ def edge_connector():
              ' (stroke (width 0.381) (type default)) (layer "F.SilkS"))')
     for i, x in enumerate(xs):
         w = 2.794 if i in (0, 49) else PAD_W
-        L.append('    (pad "%d" smd rect (at %.4f %.4f) (size %.2f %.2f)'
-                 ' (layers "F.Cu" "F.Mask") %s)'
-                 % (i + 1, x, PAD_Y, w, PAD_H, netref("J8", i + 1)))
-        L.append('    (pad "%d" smd rect (at %.4f %.4f) (size %.2f %.2f)'
-                 ' (layers "B.Cu" "B.Mask") %s)'
-                 % (i + 51, x, PAD_Y, w, PAD_H, netref("J8", i + 51)))
+        L.append(pad_smd("J8", i + 1, x, PAD_Y, w, PAD_H, '"F.Cu" "F.Mask"'))
+        L.append(pad_smd("J8", i + 51, x, PAD_Y, w, PAD_H, '"B.Cu" "B.Mask"'))
     L.append("  )")
     return "\n".join(L)
 
@@ -227,48 +286,79 @@ def edge_connector():
 # ============================================================================
 
 # Reference designators follow the schematic's current annotation (the S-100
-# edge connector is J8, flash jumpers J1–J6, serial J7, JTAG J9). If the
+# edge connector is J8, serial J7, JTAG J9). If the
 # schematic is re-annotated in KiCad these refs must be updated to match.
 COMPONENTS = [
-    # PLCC through-hole sockets (real library footprints, not a pad grid)
-    ("U1",  "Z280 (PLCC-68)",   "libfp", "Package_LCC:PLCC-68_THT-Socket", 0, 60,  85,  0),
-    ("U4",  "ATF1508 control",  "libfp", "Package_LCC:PLCC-84_THT-Socket", 0, 140, 85,  0),
-    ("U5",  "ATF1508 data",     "libfp", "Package_LCC:PLCC-84_THT-Socket", 0, 225, 85,  0),
-    # address latches + bus drivers (DIP-20)
-    ("U2",  "74HC573 lo",       "dip",  20, 0,    45,  133, 0),
-    ("U3",  "74HC573 hi",       "dip",  20, 0,    65,  133, 0),
-    ("U15", "74HCT245 addr0",   "dip",  20, 0,    90,  133, 0),
-    ("U16", "74HCT245 addr1",   "dip",  20, 0,    110, 133, 0),
-    ("U17", "74HCT245 addr2",   "dip",  20, 0,    130, 133, 0),
-    ("U18", "74HCT245 status",  "dip",  20, 0,    150, 133, 0),
-    ("U19", "74HCT245 control", "dip",  20, 0,    170, 133, 0),
-    ("U20", "74HCT245 pHLDA",   "dip",  20, 0,    190, 133, 0),
-    # SRAM + flash (DIP-32, rotated 90, stacked even-over-odd)
-    ("U6",  "SRAM bank0 even",  "dip",  32, 1,    60,  52,  90),
-    ("U7",  "SRAM bank0 odd",   "dip",  32, 1,    60,  34,  90),
-    ("U8",  "SRAM bank1 even",  "dip",  32, 1,    140, 52,  90),
-    ("U9",  "SRAM bank1 odd",   "dip",  32, 1,    140, 34,  90),
-    ("U10", "27SF020 even",     "dip",  32, 1,    225, 52,  90),
-    ("U11", "27SF020 odd",      "dip",  32, 1,    225, 34,  90),
+    # PLCC through-hole sockets (origin at top-left, body extends +Y)
+    ("U1",  "Z280 (PLCC-68)",   "libfp", "Package_LCC:PLCC-68_THT-Socket", 0, 60,  75,  0),
+    ("U4",  "ATF1508 control",  "libfp", "Package_LCC:PLCC-84_THT-Socket", 0, 140, 75,  0),
+    ("U5",  "ATF1508 data",     "libfp", "Package_LCC:PLCC-84_THT-Socket", 0, 225, 72,  0),
+    # memory: SRAM (DIP-32) + flash (DIP-28), clustered on the left, ~10 mm gaps
+    ("U6",  "SRAM bank0 even",  "dip",  32, 1,    40,  55,  90),
+    ("U7",  "SRAM bank0 odd",   "dip",  32, 1,    40,  35,  90),
+    ("U8",  "SRAM bank1 even",  "dip",  32, 1,    90,  55,  90),
+    ("U9",  "SRAM bank1 odd",   "dip",  32, 1,    90,  35,  90),
+    ("U10", "28C256 even",      "dip",  28, 1,   135,  55,  90),
+    ("U11", "28C256 odd",       "dip",  28, 1,   135,  35,  90),
+    # bus drivers (one row near the top)
+    ("U15", "74HCT245 addr0",   "dip",  20, 0,    35, 133, 90),
+    ("U16", "74HCT245 addr1",   "dip",  20, 0,    62, 133, 90),
+    ("U17", "74HCT245 addr2",   "dip",  20, 0,    89, 133, 90),
+    ("U18", "74HCT245 status",  "dip",  20, 0,   116, 133, 90),
+    ("U19", "74HCT245 control", "dip",  20, 0,   143, 133, 90),
+    ("U20", "74HCT245 pHLDA",   "dip",  20, 0,   170, 133, 90),
+    # decode + BTI buffer + config straps (top right)
+    ("U22", "74F138 decode",    "dip",  16, 0,   200, 120, 90),
+    ("U23", "74F521 flash win", "dip",  20, 0,   226, 120, 90),
+    ("U24", "74F521 slave win", "dip",  20, 0,   252, 120, 90),
+    ("U21", "74HCT244 BTI",     "dip",  20, 0,   172, 120, 90),
+    ("J10", "BTI AD0",          "hdr",  3,  2.54, 185, 108, 0),
+    ("J11", "BTI AD1",          "hdr",  3,  2.54, 195, 108, 0),
+    ("J12", "BTI AD2",          "hdr",  3,  2.54, 205, 108, 0),
+    ("J13", "BTI AD3",          "hdr",  3,  2.54, 215, 108, 0),
+    ("J14", "BTI AD4",          "hdr",  3,  2.54, 225, 108, 0),
+    ("J15", "BTI AD5",          "hdr",  3,  2.54, 235, 108, 0),
+    ("J16", "BTI AD6",          "hdr",  3,  2.54, 245, 108, 0),
+    ("J17", "BTI AD7",          "hdr",  3,  2.54, 255, 108, 0),
     # console / power / clock / reset
     ("U14", "MAX232",           "dip",  16, 0,    20,  90,  0),
-    ("J7",  "Serial (2x5)",     "libfp", "Connector_PinHeader_2.54mm:PinHeader_2x05_P2.54mm_Vertical", 0, 20, 70, 0),
-    ("U12", "7805",             "hdr",  3,  2.54, 252, 135, 0),
-    ("U13", "DS1813 reset",     "hdr",  3,  1.27, 252, 120, 0),
-    ("Y1",  "24 MHz crystal",   "hdr",  2,  4.83, 252, 105, 0),
+    ("J7",  "Serial (2x5)",     "libfp", "Connector_PinHeader_2.54mm:PinHeader_2x05_P2.54mm_Vertical", 0, 16, 40, 0),
+    ("U12", "7805",             "hdr",  3,  2.54, 252, 90,  0),
+    ("U13", "DS1813 reset",     "hdr",  3,  1.27, 252, 80,  0),
+    ("Y1",  "24 MHz crystal",   "hdr",  2,  4.83, 252, 70,  0),
     # pull-up resistors
-    ("R1",  "1k pRDY",          "hdr",  2,  7.62, 252, 90,  0),
-    ("R2",  "1k XRDY",          "hdr",  2,  7.62, 252, 80,  0),
-    ("R3",  "1k SLAVE_ONLY",    "hdr",  2,  7.62, 252, 70,  0),
-    ("R4",  "1k SIXTN",         "hdr",  2,  7.62, 252, 60,  0),
-    # headers
+    ("R1",  "1k pRDY",          "hdr",  2,  7.62, 252, 60,  0),
+    ("R2",  "1k XRDY",          "hdr",  2,  7.62, 252, 50,  0),
+    ("R3",  "1k SLAVE_ONLY",    "hdr",  2,  7.62, 252, 40,  0),
+    ("R4",  "1k SIXTN",         "hdr",  2,  7.62, 252, 30,  0),
+    # JTAG header
     ("J9",  "JTAG (1x6)",       "hdr",  6,  2.54, 25,  30,  0),
-    ("J1",  "JP VPP",           "hdr",  2,  2.54, 200, 68,  0),
-    ("J2",  "JP A15",           "hdr",  2,  2.54, 205, 68,  0),
-    ("J3",  "JP A16",           "hdr",  2,  2.54, 210, 68,  0),
-    ("J4",  "JP A17/VDD",       "hdr",  2,  2.54, 215, 68,  0),
-    ("J5",  "JP PGM",           "hdr",  2,  2.54, 220, 68,  0),
-    ("J6",  "JP VDD",           "hdr",  2,  2.54, 225, 68,  0),
+]
+
+# Decoupling / charge-pump capacitors (0.1uF), wired to explicit nets because
+# they are not yet in the schematic/netlist.
+CAPS = [
+    # MAX232 charge-pump + bypass caps (U14 at 20,90)
+    ("C1",  "0.1uF", "MAX_C1P",   "MAX_C1M", 30, 76),
+    ("C2",  "0.1uF", "MAX_C2P",   "MAX_C2M", 30, 82),
+    ("C3",  "0.1uF", "MAX_VP",    "GND",     30, 88),
+    ("C4",  "0.1uF", "MAX_VM",    "GND",     30, 94),
+    ("C5",  "0.1uF", "+5V",       "GND",     30, 100),
+    # 0.1uF bypass cap on each DIP (below the DIP-20 row / right of SRAM & flash)
+    ("C6",  "0.1uF", "+5V",       "GND",     45, 122),
+    ("C7",  "0.1uF", "+5V",       "GND",     72, 122),
+    ("C8",  "0.1uF", "+5V",       "GND",     99, 122),
+    ("C9",  "0.1uF", "+5V",       "GND",     126, 122),
+    ("C10", "0.1uF", "+5V",       "GND",     153, 122),
+    ("C11", "0.1uF", "+5V",       "GND",     172, 113),
+    ("C12", "0.1uF", "+5V",       "GND",     200, 113),
+    ("C13", "0.1uF", "+5V",       "GND",     226, 113),
+    ("C14", "0.1uF", "+5V",       "GND",     85, 60),
+    ("C15", "0.1uF", "+5V",       "GND",     85, 34),
+    ("C16", "0.1uF", "+5V",       "GND",     165, 60),
+    ("C17", "0.1uF", "+5V",       "GND",     165, 34),
+    ("C18", "0.1uF", "+5V", "GND",     248, 56),
+    ("C19", "0.1uF", "+5V", "GND",     248, 34),
 ]
 
 
@@ -278,6 +368,10 @@ def build_comp(comp):
         return library_fp(p1, ref, value, x, y, rot)
     if kind == "dip":
         return dip_fp(ref, value, p1, x, y, bool(p2), rot)
+    # Tight-pitch inline parts (e.g. TO-92 at 1.27 mm) need pads smaller than the
+    # default 1.6 mm, otherwise adjacent pins short out.
+    if p2 < 2.0:
+        return hdr_fp(ref, value, p1, x, y, rot, p2, size=1.0, drill=0.55)
     return hdr_fp(ref, value, p1, x, y, rot, p2)
 
 
@@ -340,26 +434,45 @@ def test_vias():
 
 
 def emit():
-    body = ['(kicad_pcb (version 20240108) (generator "gen_pcb")',
+    body = ['(kicad_pcb (version 20241229) (generator "gen_pcb")',
             '',
             '  (general (thickness 1.6))',
             '  (paper "A4")',
             '  (layers',
             '    (0 "F.Cu" signal)',
-            '    (1 "In1.Cu" signal)',
-            '    (2 "In2.Cu" signal)',
-            '    (31 "B.Cu" signal)',
-            '    (36 "F.SilkS" user)',
-            '    (37 "B.SilkS" user)',
-            '    (38 "F.Mask" user)',
-            '    (39 "B.Mask" user)',
-            '    (44 "Edge.Cuts" user)',
-            '    (46 "B.CrtYd" user)',
-            '    (47 "F.CrtYd" user)',
-            '    (48 "B.Fab" user)',
-            '    (49 "F.Fab" user)',
+            '    (2 "B.Cu" signal)',
+            '    (4 "In1.Cu" signal)',
+            '    (6 "In2.Cu" signal)',
+            '    (5 "F.SilkS" user)',
+            '    (7 "B.SilkS" user)',
+            '    (1 "F.Mask" user)',
+            '    (3 "B.Mask" user)',
+            '    (25 "Edge.Cuts" user)',
+            '    (29 "B.CrtYd" user)',
+            '    (31 "F.CrtYd" user)',
+            '    (33 "B.Fab" user)',
+            '    (35 "F.Fab" user)',
             '  )',
-            '  (setup (pad_to_mask_clearance 0))',
+            '  (setup',
+            '    (stackup',
+            '      (layer "F.SilkS" (type "Top Silk Screen"))',
+            '      (layer "F.Paste" (type "Top Solder Paste"))',
+            '      (layer "F.Mask" (type "Top Solder Mask") (thickness 0.01))',
+            '      (layer "F.Cu" (type "copper") (thickness 0.035))',
+            '      (layer "dielectric 1" (type "prepreg") (thickness 0.2) (material "FR4") (epsilon_r 4.5) (loss_tangent 0.02))',
+            '      (layer "In1.Cu" (type "copper") (thickness 0.035))',
+            '      (layer "dielectric 2" (type "core") (thickness 1.06) (material "FR4") (epsilon_r 4.5) (loss_tangent 0.02))',
+            '      (layer "In2.Cu" (type "copper") (thickness 0.035))',
+            '      (layer "dielectric 3" (type "prepreg") (thickness 0.2) (material "FR4") (epsilon_r 4.5) (loss_tangent 0.02))',
+            '      (layer "B.Cu" (type "copper") (thickness 0.035))',
+            '      (layer "B.Mask" (type "Bottom Solder Mask") (thickness 0.01))',
+            '      (layer "B.Paste" (type "Bottom Solder Paste"))',
+            '      (layer "B.SilkS" (type "Bottom Silk Screen"))',
+            '      (copper_finish "None")',
+            '      (dielectric_constraints no)',
+            '    )',
+            '    (pad_to_mask_clearance 0)',
+            '  )',
             '  (net 0 "")']
     for name in sorted(NETIDX, key=lambda n: NETIDX[n]):
         body.append('  (net %d "%s")' % (NETIDX[name], name))
@@ -367,6 +480,8 @@ def emit():
     body.append(edge_connector())
     for comp in COMPONENTS:
         body.append(build_comp(comp))
+    for ref, value, net1, net2, x, y in CAPS:
+        body.append(cap_fp(ref, value, net1, net2, x, y))
     body.append(board_outline())
     body.append(power_planes())
     body.append(test_vias())
@@ -381,5 +496,5 @@ if __name__ == "__main__":
         f.write(out)
     nfp = len(re.findall(r'^\s*\(footprint', out, re.M))
     npad = len(re.findall(r'^\s*\(pad', out, re.M))
-    nnet = len(re.findall(r'^\s*\(net \d+ "', out, re.M)) - 1  # minus (net 0 "")
+    nnet = len(re.findall(r'^  \(net \d+ "', out, re.M)) - 1  # minus (net 0 "")
     print("wrote z280-s100.kicad_pcb: %d footprints, %d pads, %d nets" % (nfp, npad, nnet))

@@ -8,18 +8,20 @@ verification against datasheets before this schematic is PCB-ready.
   (Z-BUS, OPT=1), transcribed from `extra/docs/z280-pins.tif`. Power = 2× VCC
   (18/19) + 4× GND (1/35/51/53); shared pins GREQ=CTIO0 (30), GACK=CTIN0 (32),
   EOP-A=INT-A (37), EOP-B=INT-B (36).
-- **ATF1508 (U2/U24)**: pin numbers are now verified against the PLCC-84 pinout
+- **ATF1508 (U4/U5)**: pin numbers are now verified against the PLCC-84 pinout
   and match `z280-s100-control.pld` / `z280-s100-data.pld` — JTAG TDI/TMS/TCK/TDO
   at 14/23/62/71 (dedicated), VCCINT 3/43 + VCCIO 13/26/38/53/66/78, GND
-  7/19/32/42/47/59/72/82, Z_CLK_IN on GCK1 = 83. Control uses 57 of 64 I/O, data
-  63 of 64 (pin 84 = OE1 spare).
-- **SST27SF020 flash (U11/U12)**: 32-pin DIP **socket**, JEDEC 27C020 layout
-  (VPP=1, A16=2, A15=3, A17=30, PGM#=31, VDD=32; A0=12 … A14=29; DQ0=13 … DQ7=21;
-  CE#=22, OE#=24, VSS=16). Word-addressed (flash A_n = byte A_{n+1}). The upper
-  6 pins route through JP jumpers (J3–J8) so a smaller JEDEC EPROM can be fitted
-  by moving the A15/A16/A17 jumpers; VPP/PGM#/VDD tie to +5V. A 28-pin part
-  (27SF512, JEDEC +2 offset) puts its VDD on socket pin 30 — move J6 from A18 to
-  +5V and leave J5/A16 unpopulated.
+  7/19/32/42/47/59/72/82. The four DEDICATED INPUT pins are GCLR = 1 (global
+  clear, active low), OE2 = 2, GCLK1 = 83, OE1 = 84 — GCLR/OE1/OE2 are tied to
+  +5V (inactive) on both CPLDs; GCLK1 = 83 carries Z_CLK_IN. Regular signals
+  must NOT sit on pins 1/2/84. Control fits at 59/64 I/O, data at 62/64 (96% —
+  the data CPLD is at its ceiling; the re-partition moves decode off it).
+- **AT28C256 flash (U10/U11)**: 28-pin DIP, JEDEC 28C256 layout (A14=1, A12=2,
+  A7=3 … A0=10, DQ0=11 … DQ7=19, CE#=20, A10=21, OE#=22, A11=23, A9=24, A8=25,
+  A13=26, WE#=27, VCC=28, VSS=14). Word-addressed (flash A_n = byte A_{n+1}),
+  so A0–A14 = LA1–LA15 and the pair spans 64 KB. Pin 27 is WE# here — where a
+  27C256 has A14 — so the two are NOT socket-interchangeable. No density
+  jumpers; a 28C128/28C64 fits if pin 1 (A14) is strapped low.
 
 ## Corrected S-100 pinout
 Taken from `extra/hardware/s100z80/s100_Z80 V2-cache.lib` (S100_MALE). Key pins:
@@ -29,11 +31,29 @@ HOLD=74, RESET=75, INT=73, NMI=12, ADSB=22, DODSB=23, SDSB=18, CDSB=19,
 DO0=36/DO1=35/DO2=88/DO3=89/DO4=38/DO5=39/DO6=40/DO7=90,
 DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
 
-## Serial console (J9, 2×5 IDC)
-- J9 pin 1 = RS-232 TX (from MAX232 T1OUT), pin 2 = RS-232 RX (to MAX232 R1IN),
+## Serial console (J7, 2×5 IDC)
+- J7 pin 1 = RS-232 TX (from MAX232 T1OUT), pin 2 = RS-232 RX (to MAX232 R1IN),
   pins 3–10 = GND.  Cable pin 1 → DB9-3, pin 2 → DB9-2, any GND → DB9-5.
-- MAX232 (U13) still needs its five charge-pump caps (C1+/C1-/C2+/C2- + V+/V-
+- MAX232 (U14) still needs its five charge-pump caps (C1+/C1-/C2+/C2- + V+/V-
   bypass, ≈ 0.1 µF each) — not yet placed.
+
+## Bus timing straps (J10–J17 + U21)
+- Eight 3-pin jumpers set the value the Z280 samples on AD0-7 at reset to load
+  its Bus Timing & Initialization register (low-8M wait states + clock divider).
+  Each jumper: centre (pin 2) → a 74HCT244 input, pin 1 = +5V, pin 3 = GND.
+  Shunt centre→+5V = 1, centre→GND = 0.
+- The 74HCT244 (U21) tri-state driver presents that value on AD0-7 during the
+  reset-config window: both /OE (pins 1, 19) tie to CFG_OE from the control
+  CPLD. The CPLD asserts WAIT >=4 clocks before reset rises and holds it 15
+  clocks after (datasheet p.541/545; 6 is the floor, the extra is free since the
+  CPU sits on WAIT), and CFG_OE tracks that same dwell, so AD0-7 stays driven
+  through the rising-edge sample and its hold time.
+- Default strap = 0b10001110 (AD7..AD0; AD0 = BTI bit 0): direct clock on
+  XTAL1, no bootstrap, no multiprocessor, 3 wait states, bus clock = CPU clock.
+  J17/J13/J12/J11 = high (+5V), J16/J15/J14/J10 = low (GND). Every bit stays
+  jumperable, so the wait field and clock divider can be changed in place.
+- Reset must be held low >=512 XTAL1 clocks (~21 us at 24 MHz); the DS1813's
+  ~100 ms power-on reset easily satisfies this.
 
 ## Wiring gaps (currently labeled but not fully connected)
 - Interrupts: S100_INT / S100_NMI route through the CPLD to Z_INT / Z_NMI.

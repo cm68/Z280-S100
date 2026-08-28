@@ -50,7 +50,6 @@ CPLD_A_IO = [
     ("Z_ST2","I"),
     ("Z_ST3","I"),
     ("Z_IE","I"),
-    ("Z_OE","I"),
     ("Z_BUSACK","I"),
     ("Z_CLK_IN","I"),
     ("Z_RESET","I"),
@@ -59,18 +58,18 @@ CPLD_A_IO = [
     ("S100_HOLD","I"),
     ("S100_pRDY","I"),
     ("S100_XRDY","I"),
-    ("S100_SIXTN","I"),
-    ("SLAVE_ONLY","I"),
-    ("LA0","I"),
-    ("LA1","I"),
-    ("LA2","I"),
+    ("S100_ADSB","I"),
+    ("S100_SDSB","I"),
+    ("S100_CDSB","I"),
     ("SRAM_WIN","I"),
     ("FLASH_WIN","I"),
+    ("SLAVE_WIN","I"),
     ("BANK","I"),
+    ("LA0","I"),
     ("Z_WAIT","O"),
-    ("Z_BUSREQ","O"),
     ("Z_INT","O"),
     ("Z_NMI","O"),
+    ("Z_BUSREQ","O"),
     ("CPLD_sMEMR","B"),
     ("CPLD_sWO","B"),
     ("CPLD_sINP","B"),
@@ -90,71 +89,86 @@ CPLD_A_IO = [
     ("MEM_WE_H","O"),
     ("FLASH_CE","O"),
     ("FLASH_OE","O"),
-    ("LATCH_LE","O"),
-    ("SRAM_A0","O"),
-    ("SRAM_A1","O"),
-    ("SLAVE","O"),
-    ("MASTER_ACTIVE","O"),
-    ("MASTER_WRITE","O"),
-    ("BYTE_SEL","O"),
+    ("FLASH_WE","O"),
+    ("CFG_OE","O"),
+    ("S100_A_OE","O"),
+    ("S100_S_OE","O"),
+    ("S100_C_OE","O"),
+    ("MST_RD","O"),
+    ("MST_WR","O"),
+    ("SLV_RD","O"),
+    ("SLV_WR","O"),
     ("XFR16","O"),
+    ("SPLIT","O"),
+    ("SLAVE","O"),
+    ("S100_SIXTN","B"),
     ("TCK","I"),
     ("TMS","I"),
     ("TDI","I"),
     ("TDO","O"),
 ]
 # Verified ATF1508 84-pin PLCC power pins (VCCINT/VCCIO/GND), shared by both CPLDs.
+# Also the three dedicated inputs we tie INACTIVE (+5V): GCLR (global clear,
+# active low) on pin 1, OE2 on pin 2, OE1 on pin 84. They must not float. GCLK1
+# (pin 83) is the clock and is handled as Z_CLK_IN in the signal maps.
 _ATF1508_POWER = [
     ("3","VCCINT","W"), ("43","VCCINT","W"),
     ("13","VCCIO","W"), ("26","VCCIO","W"), ("38","VCCIO","W"),
     ("53","VCCIO","W"), ("66","VCCIO","W"), ("78","VCCIO","W"),
     ("7","GND","W"), ("19","GND","W"), ("32","GND","W"), ("42","GND","W"),
     ("47","GND","W"), ("59","GND","W"), ("72","GND","W"), ("82","GND","W"),
+    ("1","GCLR","I"), ("2","OE2","I"), ("84","OE1","I"),
 ]
 
-# signal -> physical pin, matching z280-s100-control.pld (verified against the
-# ATF1508 PLCC-84 pinout; JTAG TDI/TMS/TCK/TDO are dedicated at 14/23/62/71).
+# signal -> physical pin, matching z280-s100-ctl.pld (the decider; verified
+# against the ATF1508 PLCC-84 pinout; JTAG TDI/TMS/TCK/TDO at 14/23/62/71).
 _A_PIN = {
-    "Z_AS": 1, "Z_DS": 2, "Z_RW": 4, "Z_BW": 5, "Z_ST0": 6, "Z_ST1": 8,
-    "Z_ST2": 9, "Z_ST3": 10, "Z_IE": 11, "Z_OE": 12, "Z_BUSACK": 15,
-    "Z_CLK_IN": 83, "Z_RESET": 16, "S100_INT": 17, "S100_NMI": 18,
-    "S100_HOLD": 20, "S100_pRDY": 21, "S100_XRDY": 22, "S100_SIXTN": 24,
-    "SLAVE_ONLY": 25, "LA0": 27, "LA1": 28, "LA2": 29, "SRAM_WIN": 30,
-    "FLASH_WIN": 31, "BANK": 33,
-    "Z_WAIT": 34, "Z_INT": 35, "Z_NMI": 36, "Z_BUSREQ": 37,
-    "CPLD_sMEMR": 39, "CPLD_sWO": 40, "CPLD_sINP": 41, "CPLD_sOUT": 44,
-    "CPLD_sINTA": 45, "CPLD_sHLTA": 46, "CPLD_sXTRQ": 48, "CPLD_pSYNC": 49,
-    "CPLD_pSTVAL": 50, "CPLD_pDBIN": 51, "CPLD_pWR": 52, "CPLD_pHLDA": 54,
-    "MEM_CE0": 55, "MEM_CE1": 56, "MEM_OE": 57, "MEM_WE_L": 58, "MEM_WE_H": 60,
-    "FLASH_CE": 61, "FLASH_OE": 63, "LATCH_LE": 64, "SRAM_A0": 65, "SRAM_A1": 67,
-    "SLAVE": 68, "MASTER_ACTIVE": 69, "MASTER_WRITE": 70, "BYTE_SEL": 73, "XFR16": 74,
-    "TCK": 62, "TMS": 23, "TDI": 14, "TDO": 71,
+    "Z_AS": 77, "Z_DS": 79, "Z_RW": 4, "Z_BW": 5, "Z_ST0": 6, "Z_ST1": 8,
+    "Z_ST2": 9, "Z_ST3": 10, "Z_IE": 11, "Z_BUSACK": 15, "Z_CLK_IN": 83, "Z_RESET": 16,
+    "S100_INT": 17, "S100_NMI": 18, "S100_HOLD": 20, "S100_pRDY": 21, "S100_XRDY": 22, "S100_ADSB": 12,
+    "S100_SDSB": 25, "S100_CDSB": 28, "SRAM_WIN": 30, "FLASH_WIN": 31, "SLAVE_WIN": 29, "BANK": 33,
+    "LA0": 27, "Z_WAIT": 34, "Z_INT": 35, "Z_NMI": 36, "Z_BUSREQ": 37, "CPLD_sMEMR": 39,
+    "CPLD_sWO": 40, "CPLD_sINP": 41, "CPLD_sOUT": 44, "CPLD_sINTA": 45, "CPLD_sHLTA": 46, "CPLD_sXTRQ": 48,
+    "CPLD_pSYNC": 49, "CPLD_pSTVAL": 50, "CPLD_pDBIN": 51, "CPLD_pWR": 52, "CPLD_pHLDA": 54, "MEM_CE0": 55,
+    "MEM_CE1": 56, "MEM_OE": 57, "MEM_WE_L": 58, "MEM_WE_H": 60, "FLASH_CE": 61, "FLASH_OE": 63,
+    "FLASH_WE": 76, "CFG_OE": 75, "S100_A_OE": 64, "S100_S_OE": 65, "S100_C_OE": 67, "MST_RD": 69,
+    "MST_WR": 70, "SLV_RD": 80, "SLV_WR": 81, "XFR16": 74, "SPLIT": 73, "SLAVE": 68,
+    "S100_SIXTN": 24, "TCK": 62, "TMS": 23, "TDI": 14, "TDO": 71,
 }
 _cpld_a_pins = [(str(_A_PIN[name]), name, elec) for name, elec in CPLD_A_IO]
 _cpld_a_pins += _ATF1508_POWER
 PARTS["ATF1508"] = ("U", "ATF1508AS (PLCC-84)", "Package_LCC:PLCC-84_THT-Socket", _cpld_a_pins)
 
 CPLD_B_IO = [
-    ("SLAVE","I"),
-    ("MASTER_ACTIVE","I"),
-    ("MASTER_WRITE","I"),
-    ("BYTE_SEL","I"),
-    ("XFR16","I"),
-    ("S100_sMEMR","I"),
-    ("S100_sWO","I"),
-    ("S100_sXTRQ","I"),
-    ("S100_ADSB","I"),
+    ("Z_CLK_IN","I"),
+    ("Z_AS","I"),
+    ("Z_DS","I"),
     ("S100_DODSB","I"),
-    ("S100_SDSB","I"),
-    ("S100_CDSB","I"),
-    ("A16","I"),
-    ("A17","I"),
-    ("A18","I"),
-    ("A19","I"),
-    ("A20","I"),
-    ("A21","I"),
-    ("A22","I"),
-    ("A23","I"),
+    ("MST_RD","I"),
+    ("MST_WR","I"),
+    ("SLV_RD","I"),
+    ("SLV_WR","I"),
+    ("XFR16","I"),
+    ("SPLIT","I"),
+    ("SLAVE","I"),
+    ("LA0","O"),
+    ("S100_DIR","O"),
+    ("A0","B"),
+    ("A1","O"),
+    ("A2","O"),
+    ("A3","O"),
+    ("A4","O"),
+    ("A5","O"),
+    ("A6","O"),
+    ("A7","O"),
+    ("A8","O"),
+    ("A9","O"),
+    ("A10","O"),
+    ("A11","O"),
+    ("A12","O"),
+    ("A13","O"),
+    ("A14","O"),
+    ("A15","O"),
     ("AD0","B"),
     ("AD1","B"),
     ("AD2","B"),
@@ -187,39 +201,25 @@ CPLD_B_IO = [
     ("S100_DI5","B"),
     ("S100_DI6","B"),
     ("S100_DI7","B"),
-    ("S100_A_OE","O"),
-    ("S100_A_DIR","O"),
-    ("S100_S_OE","O"),
-    ("S100_C_OE","O"),
-    ("S100_SC_DIR","O"),
-    ("S100_pRDY","B"),
-    ("S100_XRDY","B"),
-    ("S100_SIXTN","B"),
-    ("SRAM_WIN","O"),
-    ("FLASH_WIN","O"),
-    ("BANK","O"),
     ("TCK","I"),
     ("TMS","I"),
     ("TDI","I"),
     ("TDO","O"),
 ]
-# signal -> physical pin, matching z280-s100-data.pld (verified against the
-# ATF1508 PLCC-84 pinout; JTAG TDI/TMS/TCK/TDO are dedicated at 14/23/62/71).
+# signal -> physical pin, matching z280-s100-ad.pld (the AD manager; verified
+# against the ATF1508 PLCC-84 pinout; JTAG TDI/TMS/TCK/TDO at 14/23/62/71).
 _B_PIN = {
-    "SLAVE": 1, "MASTER_ACTIVE": 12, "MASTER_WRITE": 15, "BYTE_SEL": 16, "XFR16": 17,
-    "S100_sMEMR": 18, "S100_sWO": 20, "S100_sXTRQ": 21,
-    "S100_ADSB": 22, "S100_DODSB": 24, "S100_SDSB": 25, "S100_CDSB": 27,
-    "A16": 2, "A17": 4, "A18": 5, "A19": 6, "A20": 8, "A21": 9, "A22": 10, "A23": 11,
-    "AD0": 28, "AD1": 29, "AD2": 30, "AD3": 31, "AD4": 33, "AD5": 34, "AD6": 35, "AD7": 36,
-    "AD8": 37, "AD9": 39, "AD10": 40, "AD11": 41, "AD12": 44, "AD13": 45, "AD14": 46, "AD15": 48,
-    "S100_DO0": 49, "S100_DO1": 50, "S100_DO2": 51, "S100_DO3": 52, "S100_DO4": 54,
-    "S100_DO5": 55, "S100_DO6": 56, "S100_DO7": 57,
-    "S100_DI0": 58, "S100_DI1": 60, "S100_DI2": 61, "S100_DI3": 63, "S100_DI4": 64,
-    "S100_DI5": 65, "S100_DI6": 67, "S100_DI7": 68,
-    "S100_A_OE": 74, "S100_A_DIR": 75, "S100_S_OE": 76, "S100_C_OE": 77, "S100_SC_DIR": 79,
-    "S100_pRDY": 80, "S100_XRDY": 81, "S100_SIXTN": 83,
-    "SRAM_WIN": 69, "FLASH_WIN": 70, "BANK": 73,
-    "TCK": 62, "TMS": 23, "TDI": 14, "TDO": 71,
+    "Z_CLK_IN": 83, "Z_AS": 4, "Z_DS": 5, "S100_DODSB": 8, "MST_RD": 9, "MST_WR": 10,
+    "SLV_RD": 11, "SLV_WR": 12, "XFR16": 15, "SPLIT": 16, "SLAVE": 17, "LA0": 18,
+    "S100_DIR": 6, "A0": 20, "A1": 21, "A2": 22, "A3": 24, "A4": 25,
+    "A5": 27, "A6": 28, "A7": 29, "A8": 30, "A9": 31, "A10": 33,
+    "A11": 34, "A12": 35, "A13": 36, "A14": 37, "A15": 39, "AD0": 40,
+    "AD1": 41, "AD2": 44, "AD3": 45, "AD4": 46, "AD5": 48, "AD6": 49,
+    "AD7": 50, "AD8": 51, "AD9": 52, "AD10": 54, "AD11": 55, "AD12": 56,
+    "AD13": 57, "AD14": 58, "AD15": 60, "S100_DO0": 61, "S100_DO1": 63, "S100_DO2": 64,
+    "S100_DO3": 65, "S100_DO4": 67, "S100_DO5": 68, "S100_DO6": 69, "S100_DO7": 70, "S100_DI0": 73,
+    "S100_DI1": 74, "S100_DI2": 75, "S100_DI3": 76, "S100_DI4": 77, "S100_DI5": 79, "S100_DI6": 80,
+    "S100_DI7": 81, "TCK": 62, "TMS": 23, "TDI": 14, "TDO": 71,
 }
 _cpld_b_pins = [(str(_B_PIN[name]), name, elec) for name, elec in CPLD_B_IO]
 _cpld_b_pins += _ATF1508_POWER
@@ -235,17 +235,22 @@ PARTS["IS61C5128AS"] = ("U", "IS61C5128AS-25 (512Kx8)", "Package_DIP:DIP-32",
      ("25","A8","I"),("26","A13","I"),("27","WE","I"),("28","VCC","W"),
      ("29","A18","I"),("30","A17","I"),("31","A16","I"),("32","A15","I")])
 
-# SST27SF020 (2 Mbit, 256Kx8) in a 32-pin DIP socket. JEDEC 27C020 pinout. The
-# upper 6 pins (1/2/3/30/31/32) route through JP jumpers for density flexibility.
-PARTS["SST27SF020"] = ("U", "SST27SF020 (256Kx8)", "Package_DIP:DIP-32",
-    [("1","VPP","P"),("2","A16","I"),("3","A15","I"),("4","A12","I"),
-     ("5","A7","I"),("6","A6","I"),("7","A5","I"),("8","A4","I"),
-     ("9","A3","I"),("10","A2","I"),("11","A1","I"),("12","A0","I"),
-     ("13","DQ0","B"),("14","DQ1","B"),("15","DQ2","B"),("16","GND","W"),
-     ("17","DQ3","B"),("18","DQ4","B"),("19","DQ5","B"),("20","DQ6","B"),
-     ("21","DQ7","B"),("22","CE","I"),("23","A10","I"),("24","OE","I"),
-     ("25","A11","I"),("26","A9","I"),("27","A8","I"),("28","A13","I"),
-     ("29","A14","I"),("30","A17","I"),("31","PGM","I"),("32","VCC","W")])
+# AT28C256 (256 Kbit, 32Kx8 EEPROM) in a 28-pin DIP socket, JEDEC pinout.
+# A boot ROM only lives at boot time, so it need not be fast, wide or big --
+# but the Z-BUS has no dynamic bus sizing, so it still takes TWO byte-wide
+# parts to answer a 16-bit instruction fetch in one cycle.
+#
+# Fixed 32Kx8, so the old density jumpers are gone. Note pin 27 = WE# here,
+# where a 27C256 EPROM has A14 -- the two are NOT socket-interchangeable.
+# A 28C128/28C64 can be fitted if pin 1 (A14) is strapped low.
+PARTS["AT28C256"] = ("U", "AT28C256 (32Kx8)", "Package_DIP:DIP-28_W15.24mm",
+    [("1","A14","I"),("2","A12","I"),("3","A7","I"),("4","A6","I"),
+     ("5","A5","I"),("6","A4","I"),("7","A3","I"),("8","A2","I"),
+     ("9","A1","I"),("10","A0","I"),("11","DQ0","B"),("12","DQ1","B"),
+     ("13","DQ2","B"),("14","GND","W"),("15","DQ3","B"),("16","DQ4","B"),
+     ("17","DQ5","B"),("18","DQ6","B"),("19","DQ7","B"),("20","CE","I"),
+     ("21","A10","I"),("22","OE","I"),("23","A11","I"),("24","A9","I"),
+     ("25","A8","I"),("26","A13","I"),("27","WE","I"),("28","VCC","W")])
 
 PARTS["JP"] = ("J", "Jumper (2-pin header)", "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
     [("1","A","P"),("2","B","P")])
@@ -255,21 +260,47 @@ PARTS["74HC573"] = ("U", "74HC573", "Package_DIP:DIP-20",
      ("5","D3","I"),("6","D4","I"),("7","D5","I"),("8","D6","I"),
      ("9","D7","I"),("10","GND","W"),("11","LE","I"),("12","Q0","T"),
      ("13","Q1","T"),("14","Q2","T"),("15","Q3","T"),("16","Q4","T"),
-     ("17","Q5","T"),("18","Q6","T"),("19","Q7","T"),("20","VCC","W")])
+     ("17","Q5","T"),("18","Q6","T"),("19","Q7","T"),("20","+5V","W")])
 
 PARTS["74HCT245"] = ("U", "74HCT245", "Package_DIP:DIP-20",
     [("1","DIR","I"),("2","A0","B"),("3","A1","B"),("4","A2","B"),
      ("5","A3","B"),("6","A4","B"),("7","A5","B"),("8","A6","B"),
      ("9","A7","B"),("10","GND","W"),("11","B0","B"),("12","B1","B"),
      ("13","B2","B"),("14","B3","B"),("15","B4","B"),("16","B5","B"),
-     ("17","B6","B"),("18","B7","B"),("19","OE","I"),("20","VCC","W")])
+     ("17","B6","B"),("18","B7","B"),("19","OE","I"),("20","+5V","W")])
+
+# Octal 3-state buffer: drives the jumper-selected BTI value onto AD0-7 during
+# the reset-config window (both /OE driven by the control CPLD's CFG_OE, active
+# low) and goes high-Z once the 6-clock hold elapses.
+PARTS["74HCT244"] = ("U", "74HCT244", "Package_DIP:DIP-20",
+    [("1","OE1","I"),("2","A0","I"),("3","Y7","T"),("4","A1","I"),
+     ("5","Y6","T"),("6","A2","I"),("7","Y5","T"),("8","A3","I"),
+     ("9","Y4","T"),("10","GND","W"),("11","A4","I"),("12","Y3","T"),
+     ("13","A5","I"),("14","Y2","T"),("15","A6","I"),("16","Y1","T"),
+     ("17","A7","I"),("18","Y0","T"),("19","OE2","I"),("20","+5V","W")])
+
+# 74F138 3-to-8 decoder: A21/A22/A23 -> Y0 = SRAM_WIN (the 2 MB window 000000-1FFFFF).
+PARTS["74F138"] = ("U", "74F138", "Package_DIP:DIP-16",
+    [("1","A0","I"),("2","A1","I"),("3","A2","I"),("4","G2A","I"),("5","G2B","I"),("6","G1","I"),
+     ("7","Y7","O"),("8","GND","W"),("9","Y6","O"),("10","Y5","O"),("11","Y4","O"),("12","Y3","O"),
+     ("13","Y2","O"),("14","Y1","O"),("15","Y0","O"),("16","+5V","W")])
+
+# 74F521 8-bit identity comparator (P=Q, /P=Q output). Used for FLASH_WIN and
+# the DIP-strappable SLAVE_WIN; taps the inboard A16-23 net so it sees the TMA's
+# address in slave mode too.
+PARTS["74F521"] = ("U", "74F521", "Package_DIP:DIP-20",
+    [("1","G","I"),("2","P0","I"),("3","Q0","I"),("4","P1","I"),("5","Q1","I"),
+     ("6","P2","I"),("7","Q2","I"),("8","P3","I"),("9","Q3","I"),("10","GND","W"),
+     ("11","Q4","I"),("12","P4","I"),("13","Q5","I"),("14","P5","I"),("15","Q6","I"),
+     ("16","P6","I"),("17","Q7","I"),("18","P7","I"),("19","PEQQ","O"),("20","+5V","W")])
+
 
 PARTS["MAX232"] = ("U", "MAX232", "Package_DIP:DIP-16",
     [("1","C1+","P"),("2","V+","P"),("3","C1-","P"),("4","C2+","P"),
      ("5","C2-","P"),("6","V-","P"),("7","T2OUT","O"),("8","R2IN","I"),
      ("9","R2OUT","O"),("10","T2IN","I"),("11","T1IN","I"),
      ("12","R1OUT","O"),("13","R1IN","I"),("14","T1OUT","O"),
-     ("15","GND","W"),("16","VCC","W")])
+     ("15","GND","W"),("16","+5V","W")])
 
 PARTS["DS1813"] = ("U", "DS1813", "Package_TO_SOT:TO-92",
     [("1","GND","W"),("2","RST","OC"),("3","VCC","W")])
@@ -291,6 +322,10 @@ PARTS["SERIAL"] = ("J", "Serial header (2x5)", "Connector_PinHeader_2.54mm:PinHe
 
 PARTS["R"] = ("R", "1k", "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
     [("1","1","P"),("2","2","P")])
+
+# 3-pin config jumper: centre pin selects +5V (high) or GND (low).
+PARTS["JP3"] = ("J", "Jumper (3-pin header)", "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+    [("1","HIGH","P"),("2","SEL","P"),("3","LOW","P")])
 
 S100 = [("1","+8V","W"),("2","+16V","W"),("3","XRDY","B"),("4","VI0","P"),
     ("5","VI1","P"),("6","VI2","P"),("7","VI3","P"),("8","VI4","P"),
@@ -466,34 +501,33 @@ def emit_sheet_file(title, instances, paper="A1"):
 
 # ----------------------------------------------------------------------------
 def sram_nets(data_nets, we, ce):
-    d = {"1":"LA15","2":"LA13","3":"LA8","4":"LA7","5":"LA6","6":"LA5",
-         "7":"LA4","8":"LA3","9":"SRAM_A1","10":"SRAM_A0","11":data_nets[0],
+    d = {"1":"A15","2":"A13","3":"A8","4":"A7","5":"A6","6":"A5",
+         "7":"A4","8":"A3","9":"A2","10":"A1","11":data_nets[0],
          "12":data_nets[1],"13":data_nets[2],"14":"GND","15":data_nets[3],
          "16":data_nets[4],"17":data_nets[5],"18":data_nets[6],"19":data_nets[7],
-         "20":ce,"21":"LA11","22":"MEM_OE","23":"LA12","24":"LA10",
-         "25":"LA9","26":"LA14","27":we,"28":"+5V","29":"A19","30":"A18",
+         "20":ce,"21":"A11","22":"MEM_OE","23":"A12","24":"A10",
+         "25":"A9","26":"A14","27":we,"28":"+5V","29":"A19","30":"A18",
          "31":"A17","32":"A16"}
     return d
 
 def flash_nets(data_nets):
-    # SST27SF020 (256Kx8), JEDEC 27C020. Word-addressed: flash A_n = byte A_{n+1}.
-    # Upper 6 pins (VPP/A16/A15/A17/PGM#/VDD) route through JP jumpers so a
-    # smaller EPROM can be fitted by moving the address jumpers.
-    d = {"12":"LA1","11":"LA2","10":"LA3","9":"LA4","8":"LA5","7":"LA6",
-         "6":"LA7","5":"LA8","27":"LA9","26":"LA10","23":"LA11","25":"LA12",
-         "4":"LA13","28":"LA14","29":"LA15",
-         "3":"FLASH_A15","2":"FLASH_A16","30":"FLASH_A17",
-         "13":data_nets[0],"14":data_nets[1],"15":data_nets[2],"17":data_nets[3],
-         "18":data_nets[4],"19":data_nets[5],"20":data_nets[6],"21":data_nets[7],
-         "22":"FLASH_CE","24":"FLASH_OE",
-         "1":"FLASH_VPP","31":"FLASH_PGM","32":"FLASH_VDD",
-         "16":"GND"}
+    # AT28C256 (32Kx8), JEDEC 28-pin. Word-addressed: ROM A_n = byte A_{n+1},
+    # so ROM A0-A14 = LA1-LA15 and the pair spans a 64 KB byte window.
+    # WE# is driven by the control CPLD so the boot EEPROM can be reprogrammed
+    # in-system; strap it to +5V instead if you want hard write protection.
+    d = {"10":"A1","9":"A2","8":"A3","7":"A4","6":"A5","5":"A6",
+         "4":"A7","3":"A8","25":"A9","24":"A10","21":"A11","23":"A12",
+         "2":"A13","26":"A14","1":"A15",
+         "11":data_nets[0],"12":data_nets[1],"13":data_nets[2],"15":data_nets[3],
+         "16":data_nets[4],"17":data_nets[5],"18":data_nets[6],"19":data_nets[7],
+         "20":"FLASH_CE","22":"FLASH_OE","27":"FLASH_WE",
+         "14":"GND","28":"+5V"}
     return d
 
 def _cpld_nets(pins, tag):
     nets = {}
     for num, nm, e in pins:
-        if nm in ("VCC", "VCCINT", "VCCIO"):
+        if nm in ("VCC", "VCCINT", "VCCIO", "GCLR", "OE1", "OE2"):
             nets[num] = "+5V"
         elif nm == "GND":
             nets[num] = "GND"
@@ -535,7 +569,7 @@ def buf_nets(alist, blist, dirn, oen):
 
 def single_sheet():
     inst = []
-    # CPU + address latches
+    # CPU (address is latched inside the AD CPLD, U5)
     z = {"40":"AD0","42":"AD1","43":"AD2","44":"AD3","54":"AD4","57":"AD5",
          "60":"AD6","61":"AD7","62":"AD8","64":"AD9","65":"AD10","67":"AD11",
          "68":"AD12","2":"AD13","3":"AD14","4":"AD15",
@@ -549,81 +583,77 @@ def single_sheet():
          "18":"+5V","19":"+5V",
          "1":"GND","35":"GND","51":"GND","53":"GND"}
     inst.append(emit_symbol_instance("Z280", "U1", 88.90, 25.4, z))
-    latch_lo = {"1":"GND","2":"AD0","3":"AD1","4":"AD2","5":"AD3","6":"AD4",
-                "7":"AD5","8":"AD6","9":"AD7","10":"GND","11":"LATCH_LE",
-                "12":"LA0","13":"LA1","14":"LA2","15":"LA3","16":"LA4",
-                "17":"LA5","18":"LA6","19":"LA7","20":"+5V"}
-    inst.append(emit_symbol_instance("74HC573", "U3", 88.90, 127, latch_lo))
-    latch_hi = {"1":"GND","2":"AD8","3":"AD9","4":"AD10","5":"AD11","6":"AD12",
-                "7":"AD13","8":"AD14","9":"AD15","10":"GND","11":"LATCH_LE",
-                "12":"LA8","13":"LA9","14":"LA10","15":"LA11","16":"LA12",
-                "17":"LA13","18":"LA14","19":"LA15","20":"+5V"}
-    inst.append(emit_symbol_instance("74HC573", "U4", 88.90, 165.1, latch_hi))
     # CPLD
-    inst.append(emit_symbol_instance("ATF1508", "U2", 162.56, 25.4, cpld_a_nets()))
-    inst.append(emit_symbol_instance("ATF1508B", "U24", 162.56, 152.4, cpld_b_nets()))
-    # Memory: U9/U11 = even/LO on AD8-15, U10/U12 = odd/HI on AD0-7
-    inst.append(emit_symbol_instance("IS61C5128AS", "U9", 231.14, 25.4,
+    inst.append(emit_symbol_instance("ATF1508", "U4", 162.56, 25.4, cpld_a_nets()))
+    inst.append(emit_symbol_instance("ATF1508B", "U5", 162.56, 152.4, cpld_b_nets()))
+    # Address decode (external, on the inboard A16-23 net so slave mode works):
+    # 74F138 A21-23 -> SRAM_WIN; 74F521 (0xF0) -> FLASH_WIN; 74F521 (2MB strap) -> SLAVE_WIN.
+    inst.append(emit_symbol_instance("74F138", "U22", 360.0, 60.0,
+                 {"1":"A21","2":"A22","3":"A23","4":"GND","5":"GND","6":"+5V",
+                  "15":"SRAM_WIN","8":"GND","16":"+5V"}))
+    inst.append(emit_symbol_instance("74F521", "U23", 360.0, 100.0,
+                 {"1":"GND","2":"GND","4":"GND","6":"GND","8":"GND",
+                  "12":"+5V","14":"+5V","16":"+5V","18":"+5V",
+                  "3":"A16","5":"A17","7":"A18","9":"A19","11":"A20","13":"A21","15":"A22","17":"A23",
+                  "19":"FLASH_WIN","10":"GND","20":"+5V"}))
+    inst.append(emit_symbol_instance("74F521", "U24", 360.0, 140.0,
+                 {"1":"GND","14":"GND","16":"GND","18":"GND",
+                  "2":"A16","3":"A16","4":"A17","5":"A17","6":"A18","7":"A18","8":"A19","9":"A19",
+                  "12":"A20","11":"A20","13":"A21","15":"A22","17":"A23",
+                  "19":"SLAVE_WIN","10":"GND","20":"+5V"}))
+    # Memory: U6/U8 = even/LO on AD8-15, U7/U9 = odd/HI on AD0-7
+    inst.append(emit_symbol_instance("IS61C5128AS", "U6", 231.14, 25.4,
                  sram_nets([f"AD{i}" for i in range(8,16)], "MEM_WE_L", "MEM_CE0")))
-    inst.append(emit_symbol_instance("IS61C5128AS", "U10", 231.14, 76.2,
+    inst.append(emit_symbol_instance("IS61C5128AS", "U7", 231.14, 76.2,
                  sram_nets([f"AD{i}" for i in range(8)], "MEM_WE_H", "MEM_CE0")))
-    inst.append(emit_symbol_instance("IS61C5128AS", "U22", 231.14, 127.0,
+    inst.append(emit_symbol_instance("IS61C5128AS", "U8", 231.14, 127.0,
                  sram_nets([f"AD{i}" for i in range(8,16)], "MEM_WE_L", "MEM_CE1")))
-    inst.append(emit_symbol_instance("IS61C5128AS", "U23", 231.14, 177.8,
+    inst.append(emit_symbol_instance("IS61C5128AS", "U9", 231.14, 177.8,
                  sram_nets([f"AD{i}" for i in range(8)], "MEM_WE_H", "MEM_CE1")))
-    inst.append(emit_symbol_instance("SST27SF020", "U11", 294.64, 25.4,
+    # Boot EEPROM: 2x AT28C256 = 32K x 16 = 64 KB at F00000-F0FFFF. Two parts
+    # because the Z-BUS has no dynamic bus sizing, not because we need the size.
+    # The old density jumpers are gone -- a fixed 32Kx8 part has nothing to strap.
+    inst.append(emit_symbol_instance("AT28C256", "U10", 294.64, 25.4,
                  flash_nets([f"AD{i}" for i in range(8,16)])))
-    inst.append(emit_symbol_instance("SST27SF020", "U12", 294.64, 76.2,
+    inst.append(emit_symbol_instance("AT28C256", "U11", 294.64, 76.2,
                  flash_nets([f"AD{i}" for i in range(8)])))
-    # Flash upper-6-pin jumper area (shared by U11/U12). Default = 27SF020;
-    # for a smaller EPROM move/remove the A15/A16/A17 jumpers. A 28-pin part
-    # (JEDEC +2 offset) lands its VDD (pin 28) on socket pin 30 -> move J6 to +5V.
-    # VPP/PGM#/VDD tie +5V.
-    for i, (jp, a, b) in enumerate([
-            ("J3", "FLASH_VPP", "+5V"),
-            ("J4", "FLASH_A15", "A16"),
-            ("J5", "FLASH_A16", "A17"),
-            ("J6", "FLASH_A17", "A18"),
-            ("J7", "FLASH_PGM", "+5V"),
-            ("J8", "FLASH_VDD", "+5V")]):
-        inst.append(emit_symbol_instance("JP", jp, 358.14, 25.4 + i * 12.7, {"1": a, "2": b}))
     # S-100 connector (the byte-steered data path lives inside CPLD B / U24)
-    inst.append(emit_symbol_instance("S100_100", "J1", 421.64, 25.4, s100_nets()))
+    inst.append(emit_symbol_instance("S100_100", "J8", 421.64, 25.4, s100_nets()))
     # Power / clock / reset / console
-    inst.append(emit_symbol_instance("LM7805", "U15", 294.64, 139.7,
+    inst.append(emit_symbol_instance("LM7805", "U12", 294.64, 139.7,
                  {"1":"+8V","2":"GND","3":"+5V"}))
     inst.append(emit_symbol_instance("Crystal", "Y1", 294.64, 127.0,
                  {"1":"XTALI","2":"XTALO"}))
-    inst.append(emit_symbol_instance("DS1813", "U14", 294.64, 165.1,
+    inst.append(emit_symbol_instance("DS1813", "U13", 294.64, 165.1,
                  {"1":"GND","2":"Z_RESET","3":"+5V"}))
-    inst.append(emit_symbol_instance("MAX232", "U13", 358.14, 177.8,
+    inst.append(emit_symbol_instance("MAX232", "U14", 358.14, 177.8,
                  {"1":"MAX_C1P","2":"MAX_VP","3":"MAX_C1M","4":"MAX_C2P",
                   "5":"MAX_C2M","6":"MAX_VM","7":"NC","8":"NC","9":"NC",
                   "10":"NC","11":"Z_TXD","12":"Z_RXD","13":"MAX_RS232_RX",
                   "14":"MAX_RS232_TX","15":"GND","16":"+5V"}))
     # Serial console header: RS-232 TX/RX + grounds, 2x5 IDC for a DB9 pigtail
-    inst.append(emit_symbol_instance("SERIAL", "J9", 358.14, 215.9,
+    inst.append(emit_symbol_instance("SERIAL", "J7", 358.14, 215.9,
                  {"1":"MAX_RS232_TX","2":"MAX_RS232_RX","3":"GND","4":"GND",
                   "5":"GND","6":"GND","7":"GND","8":"GND","9":"GND","10":"GND"}))
     # S-100 drive buffers (74HCT245): address + status + control
-    inst.append(emit_symbol_instance("74HCT245", "U16", 502.92, 25.4,
-                 buf_nets(["BYTE_SEL"] + [f"LA{i}" for i in range(1,8)], [f"S100_A{i}" for i in range(8)], "S100_A_DIR", "S100_A_OE")))
-    inst.append(emit_symbol_instance("74HCT245", "U17", 502.92, 63.5,
-                 buf_nets([f"LA{i}" for i in range(8,16)], [f"S100_A{i}" for i in range(8,16)], "S100_A_DIR", "S100_A_OE")))
-    inst.append(emit_symbol_instance("74HCT245", "U18", 502.92, 101.6,
-                 buf_nets([f"A{i}" for i in range(16,24)], [f"S100_A{i}" for i in range(16,24)], "S100_A_DIR", "S100_A_OE")))
-    inst.append(emit_symbol_instance("74HCT245", "U19", 502.92, 139.7,
+    inst.append(emit_symbol_instance("74HCT245", "U15", 502.92, 25.4,
+                 buf_nets(["A0"] + [f"LA{i}" for i in range(1,8)], [f"S100_A{i}" for i in range(8)], "S100_DIR", "S100_A_OE")))
+    inst.append(emit_symbol_instance("74HCT245", "U16", 502.92, 63.5,
+                 buf_nets([f"LA{i}" for i in range(8,16)], [f"S100_A{i}" for i in range(8,16)], "S100_DIR", "S100_A_OE")))
+    inst.append(emit_symbol_instance("74HCT245", "U17", 502.92, 101.6,
+                 buf_nets([f"A{i}" for i in range(16,24)], [f"S100_A{i}" for i in range(16,24)], "S100_DIR", "S100_A_OE")))
+    inst.append(emit_symbol_instance("74HCT245", "U18", 502.92, 139.7,
                  buf_nets(["CPLD_sMEMR","CPLD_sWO","CPLD_sINP","CPLD_sOUT","CPLD_sINTA","CPLD_sHLTA","CPLD_sXTRQ"],
                           ["S100_sMEMR","S100_sWO","S100_sINP","S100_sOUT","S100_sINTA","S100_sHLTA","S100_sXTRQ"],
-                          "S100_SC_DIR", "S100_S_OE")))
-    inst.append(emit_symbol_instance("74HCT245", "U20", 502.92, 177.8,
+                          "S100_DIR", "S100_S_OE")))
+    inst.append(emit_symbol_instance("74HCT245", "U19", 502.92, 177.8,
                  buf_nets(["CPLD_pSYNC","CPLD_pSTVAL","CPLD_pDBIN","CPLD_pWR"],
                           ["S100_pSYNC","S100_pSTVAL","S100_pDBIN","S100_pWR"],
-                          "S100_SC_DIR", "S100_C_OE")))
+                          "S100_DIR", "S100_C_OE")))
     # pHLDA is the permanent master's *exclusive* output, asserted while a TMA
     # holds the bus -- opposite direction from pSYNC/pDBIN/pWR -- so it gets its
     # own always-on driver (74HCT245 strapped A->B). Unused A inputs tied low.
-    inst.append(emit_symbol_instance("74HCT245", "U21", 502.92, 215.9,
+    inst.append(emit_symbol_instance("74HCT245", "U20", 502.92, 215.9,
                  {"1":"+5V","10":"GND","19":"GND","20":"+5V",
                   "2":"CPLD_pHLDA","11":"S100_pHLDA",
                   "3":"GND","4":"GND","5":"GND","6":"GND","7":"GND","8":"GND","9":"GND"}))
@@ -635,8 +665,33 @@ def single_sheet():
     inst.append(emit_symbol_instance("R", "R3", 434.34, 266.7, {"1":"GND","2":"SLAVE_ONLY"}))
     # SIXTN is open-collector (wired-OR); pull up like the ready lines.
     inst.append(emit_symbol_instance("R", "R4", 434.34, 279.4, {"1":"+5V","2":"S100_SIXTN"}))
+    # Bus Timing & Initialization config. At reset the Z280 samples AD0-7 to
+    # load the BTI register (low-8M wait states + the clock divider). A 74HCT244
+    # tri-state driver presents the jumper-selected value on AD0-7 while Z_RESET
+    # is asserted: both /OE are active low, so the part drives during reset and
+    # goes high-Z the moment reset deasserts. Jumpers J10-J17 select each bit.
+    for i in range(8):
+        node = f"BTI_AD{i}"
+        y = 190.0 + i * 10.0
+        inst.append(emit_symbol_instance("JP3", f"J{10+i}", 560.0, y,
+                     {"1":"+5V", "2":node, "3":"GND"}))
+    # The Z280 latches AD0-7 on the rising edge of RESET (p.545) and needs WAIT
+    # held for 6 clocks past that edge (p.541). The control CPLD holds both WAIT
+    # and this 244's /OE through a 6-clock counter, so AD0-7 stays driven for the
+    # whole sample window. Jumpers J10-J17 select the value.
+    inst.append(emit_symbol_instance("74HCT244", "U21", 620.0, 190.0,
+        {"1":"CFG_OE","19":"CFG_OE",
+         "2":"BTI_AD0","18":"AD0",
+         "4":"BTI_AD1","16":"AD1",
+         "6":"BTI_AD2","14":"AD2",
+         "8":"BTI_AD3","12":"AD3",
+         "11":"BTI_AD4","9":"AD4",
+         "13":"BTI_AD5","7":"AD5",
+         "15":"BTI_AD6","5":"AD6",
+         "17":"BTI_AD7","3":"AD7",
+         "10":"GND","20":"+5V"}))
     # JTAG programming header: TCK/TMS parallel, TDI->A->B->TDO chained
-    inst.append(emit_symbol_instance("JTAG", "J2", 502.92, 292.1,
+    inst.append(emit_symbol_instance("JTAG", "J9", 502.92, 292.1,
                  {"1":"JTAG_TCK","2":"JTAG_TMS","3":"JTAG_TDI","4":"JTAG_TDO","5":"GND","6":"+5V"}))
     return emit_sheet_file("Z280 S-100 CPU card", inst)
 
@@ -654,18 +709,20 @@ verification against datasheets before this schematic is PCB-ready.
   (Z-BUS, OPT=1), transcribed from `extra/docs/z280-pins.tif`. Power = 2× VCC
   (18/19) + 4× GND (1/35/51/53); shared pins GREQ=CTIO0 (30), GACK=CTIN0 (32),
   EOP-A=INT-A (37), EOP-B=INT-B (36).
-- **ATF1508 (U2/U24)**: pin numbers are now verified against the PLCC-84 pinout
+- **ATF1508 (U4/U5)**: pin numbers are now verified against the PLCC-84 pinout
   and match `z280-s100-control.pld` / `z280-s100-data.pld` — JTAG TDI/TMS/TCK/TDO
   at 14/23/62/71 (dedicated), VCCINT 3/43 + VCCIO 13/26/38/53/66/78, GND
-  7/19/32/42/47/59/72/82, Z_CLK_IN on GCK1 = 83. Control uses 57 of 64 I/O, data
-  63 of 64 (pin 84 = OE1 spare).
-- **SST27SF020 flash (U11/U12)**: 32-pin DIP **socket**, JEDEC 27C020 layout
-  (VPP=1, A16=2, A15=3, A17=30, PGM#=31, VDD=32; A0=12 … A14=29; DQ0=13 … DQ7=21;
-  CE#=22, OE#=24, VSS=16). Word-addressed (flash A_n = byte A_{n+1}). The upper
-  6 pins route through JP jumpers (J3–J8) so a smaller JEDEC EPROM can be fitted
-  by moving the A15/A16/A17 jumpers; VPP/PGM#/VDD tie to +5V. A 28-pin part
-  (27SF512, JEDEC +2 offset) puts its VDD on socket pin 30 — move J6 from A18 to
-  +5V and leave J5/A16 unpopulated.
+  7/19/32/42/47/59/72/82. The four DEDICATED INPUT pins are GCLR = 1 (global
+  clear, active low), OE2 = 2, GCLK1 = 83, OE1 = 84 — GCLR/OE1/OE2 are tied to
+  +5V (inactive) on both CPLDs; GCLK1 = 83 carries Z_CLK_IN. Regular signals
+  must NOT sit on pins 1/2/84. Control fits at 59/64 I/O, data at 62/64 (96% —
+  the data CPLD is at its ceiling; the re-partition moves decode off it).
+- **AT28C256 flash (U10/U11)**: 28-pin DIP, JEDEC 28C256 layout (A14=1, A12=2,
+  A7=3 … A0=10, DQ0=11 … DQ7=19, CE#=20, A10=21, OE#=22, A11=23, A9=24, A8=25,
+  A13=26, WE#=27, VCC=28, VSS=14). Word-addressed (flash A_n = byte A_{n+1}),
+  so A0–A14 = LA1–LA15 and the pair spans 64 KB. Pin 27 is WE# here — where a
+  27C256 has A14 — so the two are NOT socket-interchangeable. No density
+  jumpers; a 28C128/28C64 fits if pin 1 (A14) is strapped low.
 
 ## Corrected S-100 pinout
 Taken from `extra/hardware/s100z80/s100_Z80 V2-cache.lib` (S100_MALE). Key pins:
@@ -675,11 +732,29 @@ HOLD=74, RESET=75, INT=73, NMI=12, ADSB=22, DODSB=23, SDSB=18, CDSB=19,
 DO0=36/DO1=35/DO2=88/DO3=89/DO4=38/DO5=39/DO6=40/DO7=90,
 DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
 
-## Serial console (J9, 2×5 IDC)
-- J9 pin 1 = RS-232 TX (from MAX232 T1OUT), pin 2 = RS-232 RX (to MAX232 R1IN),
+## Serial console (J7, 2×5 IDC)
+- J7 pin 1 = RS-232 TX (from MAX232 T1OUT), pin 2 = RS-232 RX (to MAX232 R1IN),
   pins 3–10 = GND.  Cable pin 1 → DB9-3, pin 2 → DB9-2, any GND → DB9-5.
-- MAX232 (U13) still needs its five charge-pump caps (C1+/C1-/C2+/C2- + V+/V-
+- MAX232 (U14) still needs its five charge-pump caps (C1+/C1-/C2+/C2- + V+/V-
   bypass, ≈ 0.1 µF each) — not yet placed.
+
+## Bus timing straps (J10–J17 + U21)
+- Eight 3-pin jumpers set the value the Z280 samples on AD0-7 at reset to load
+  its Bus Timing & Initialization register (low-8M wait states + clock divider).
+  Each jumper: centre (pin 2) → a 74HCT244 input, pin 1 = +5V, pin 3 = GND.
+  Shunt centre→+5V = 1, centre→GND = 0.
+- The 74HCT244 (U21) tri-state driver presents that value on AD0-7 during the
+  reset-config window: both /OE (pins 1, 19) tie to CFG_OE from the control
+  CPLD. The CPLD asserts WAIT >=4 clocks before reset rises and holds it 15
+  clocks after (datasheet p.541/545; 6 is the floor, the extra is free since the
+  CPU sits on WAIT), and CFG_OE tracks that same dwell, so AD0-7 stays driven
+  through the rising-edge sample and its hold time.
+- Default strap = 0b10001110 (AD7..AD0; AD0 = BTI bit 0): direct clock on
+  XTAL1, no bootstrap, no multiprocessor, 3 wait states, bus clock = CPU clock.
+  J17/J13/J12/J11 = high (+5V), J16/J15/J14/J10 = low (GND). Every bit stays
+  jumperable, so the wait field and clock divider can be changed in place.
+- Reset must be held low >=512 XTAL1 clocks (~21 us at 24 MHz); the DS1813's
+  ~100 ms power-on reset easily satisfies this.
 
 ## Wiring gaps (currently labeled but not fully connected)
 - Interrupts: S100_INT / S100_NMI route through the CPLD to Z_INT / Z_NMI.

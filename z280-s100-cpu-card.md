@@ -130,7 +130,7 @@ The Z280's cache fill is not a separate bus protocol — there's no `BURST` pin.
 | Range | Size | Target | Notes |
 |---|---|---|---|
 | `000000–1FFFFF` | 2 MB | Local SRAM | Micronix runtime; zero-wait, burst, cacheable; two banks via A20 |
-| `F00000–F3FFFF` | 256 KB (socket to 512 KB) | Boot flash | 32-pin socket; CPLD overlays flash on the reset vector at power-up, then remaps |
+| `F00000–F0FFFF` | 64 KB | Boot EEPROM | 2× 28C256 (28-pin); CPLD overlays flash on the reset vector at power-up, then remaps |
 | `200000–EFFFFF` | ~14 MB | S-100 memory | Off-card memory cards; mark non-cacheable |
 | `I/O 0000–FDFF` | 64 KB | S-100 I/O | Ports FE/FF stay on-chip (UART, timers, MMU) |
 
@@ -282,9 +282,9 @@ One 1×6 header programs both parts in a single chain: `TCK`/`TMS` wired in para
 
 **Interrupts.** Backplane `INT` → Z280 `INT` (level), `NMI` → `NMI`. Vectored interrupts work via the `sINTA` cycle (ST = `0100–0111`), where the Z280 reads the vector off the bus like any I/O read — wire it if a controller needs it; otherwise keep interrupts flat.
 
-**Clock.** A crystal on `XTALI`/`XTALO`; the processor clock is always **half the crystal frequency**, and the bus clock (output on `CLK`) is the processor clock divided by 1, 2, or 4 via the `CS` field of the Bus Timing & Initialization register (`00`=÷2 default, `01`=÷1, `10`=÷4, `11`=reserved). The `Z8028012` is rated for a **12 MHz processor clock**, so it needs a **24 MHz crystal** — the datasheet's "10 MHz"/"12.5 MHz" columns are processor clocks (XTALI = 20/25 MHz), confirming the part-number MHz is the CPU clock, not the crystal. For full-bore SRAM, set `CS`=`01` (÷1): the bus clock equals the CPU clock, **12 MHz**, so local SRAM runs zero-wait/burst at full speed while the CPLD WAIT-stretches off-card S-100 cycles to ≤6 MHz. `CS` is only writable at reset (WAIT asserted → `AD0–7` load); the ÷2 default gives a 6 MHz bus without that step.
+**Clock.** A crystal on `XTALI`/`XTALO`; the processor clock is always **half the crystal frequency**, and the bus clock (output on `CLK`) is the processor clock divided by 1, 2, or 4 via the `CS` field of the Bus Timing & Initialization register (`00`=÷2 default, `01`=÷1, `10`=÷4, `11`=reserved). The `Z8028012` is rated for a **12 MHz processor clock**, so it needs a **24 MHz crystal** — the datasheet's "10 MHz"/"12.5 MHz" columns are processor clocks (XTALI = 20/25 MHz), confirming the part-number MHz is the CPU clock, not the crystal. For full-bore SRAM, set `CS`=`01` (÷1): the bus clock equals the CPU clock, **12 MHz**, so local SRAM runs zero-wait/burst at full speed while the CPLD WAIT-stretches off-card S-100 cycles to ≤6 MHz. `CS` is only writable at reset (WAIT asserted → `AD0–7` load); the ÷2 default gives a 6 MHz bus without that step. The BTI register value is set at reset by eight 3-pin jumpers (`J10–J17`) feeding a 74HCT244 (`U21`) whose tri-state outputs drive `AD0–7`; the control CPLD asserts WAIT ≥4 clocks before reset rises and holds it 15 clocks after (datasheet p.541/545; 6 is the floor, the rest is free), and `CFG_OE` tracks that same dwell to keep `AD0–7` driven through the sample. Default strap = `0b10001110` (AD7..AD0; AD4=0): direct clock, no bootstrap, no multiprocessor, 3 wait states, bus clock = CPU clock — the wait field and clock divider stay jumperable.
 
-**Reset.** A reset supervisor (`DS1813`) holds `RESET` low ~100 ms at power-on, OR'd with backplane `pRESET`. The same net resets both CPLDs and re-asserts the flash-over-reset-vector latch.
+**Reset.** A reset supervisor (`DS1813`) holds `RESET` low ~100 ms at power-on, OR'd with backplane `pRESET`. The Z280 needs ≥512 XTAL1 clocks (~21 µs at 24 MHz) of reset, so the 100 ms is ample. The same net resets both CPLDs and re-asserts the flash-over-reset-vector latch.
 
 **Power.** Regulate the +8 V rail down to +5 V with a `7805` (heatsink) or a small switcher. Budget ≈ 0.6 A: Z280 ~200 mA, two ATF1508s ~100 mA, four SRAMs, flash, drivers, MAX232. 4-layer board (power + ground planes), 0.1 µF per power pin plus bulk 10–47 µF.
 
@@ -295,23 +295,25 @@ One 1×6 header programs both parts in a single chain: `TCK`/`TMS` wired in para
 | Ref | Part | Notes |
 |---|---|---|
 | U1 | Zilog Z280MPU | 68-pin PLCC (or PGA); OPT tied high |
-| U2 | Microchip ATF1508AS | 84-pin PLCC, 7 ns — control CPLD (A) |
-| U24 | Microchip ATF1508AS | 84-pin PLCC, 7 ns — data-path CPLD (B) |
-| U3–U4 | 74HC573 ×2 | address demux latch (AD0-15 → LA0-15) |
-| U9–U10, U22–U23 | IS61C5128AS-25 ×4 | 512K×8, 25 ns SRAM = 2 MB word-wide, two banks (on DIP carriers) |
-| U11–U12 | SST27SF020 ×2 | 256K×8 flash = 512 KB boot (32-pin DIP socket, JEDEC; JP jumpers for density) |
-| U16–U18 | 74HCT245 ×3 | S-100 address drivers (A0–23) |
-| U19 | 74HCT245 | S-100 status driver |
-| U20 | 74HCT245 | S-100 control driver |
-| U21 | 74HCT245 | pHLDA driver — one signal, full part (DIP-only constraint) |
-| U13 | MAX232 (or 1488/1489) | console level shifter |
-| U14 | DS1813 | reset supervisor |
-| U15 | 7805 + heatsink | +5 V from +8 V rail |
+| U4 | Microchip ATF1508AS | 84-pin PLCC, 7 ns — control CPLD (A) |
+| U5 | Microchip ATF1508AS | 84-pin PLCC, 7 ns — data-path CPLD (B) |
+| U2–U3 | 74HC573 ×2 | address demux latch (AD0-15 → LA0-15) |
+| U6–U9 | IS61C5128AS-25 ×4 | 512K×8, 25 ns SRAM = 2 MB word-wide, two banks (on DIP carriers) |
+| U10–U11 | AT28C256 ×2 | 32K×8 EEPROM = 64 KB boot (28-pin DIP, JEDEC; no density jumpers) |
+| U15–U17 | 74HCT245 ×3 | S-100 address drivers (A0–23) |
+| U18 | 74HCT245 | S-100 status driver |
+| U19 | 74HCT245 | S-100 control driver |
+| U20 | 74HCT245 | pHLDA driver — one signal, full part (DIP-only constraint) |
+| U14 | MAX232 (or 1488/1489) | console level shifter |
+| U13 | DS1813 | reset supervisor |
+| U12 | PSU5a switcher | +5 V from +8 V rail, 3 A, no heatsink |
 | Y1 | 24 MHz crystal | Z280 time base (CPU clock = crystal ÷ 2) |
 | J2 | 1×6 pin header | JTAG programming chain (TDI→A→B→TDO) |
+| J10–J17 | 3-pin jumper ×8 | BTI reset straps — set the AD0-7 reset value (wait states + clock divider) |
+| U21 | 74HCT244 | tri-state BTI driver — presents the strap value on AD0-7 during reset, high-Z after |
 | — | S-100 edge connector | 100-pin, gold fingers |
 
-> The four `74HCT245` data transceivers (U5–U8) from the single-CPLD rev are gone — byte steering lives inside CPLD B. The six address/status/control/pHLDA drivers (U16–U21) remain; exact counts follow from the pin budget at PCB time.
+> The four `74HCT245` data transceivers from the single-CPLD rev are gone — byte steering lives inside CPLD B. The six address/status/control/pHLDA drivers (U15–U20) remain; exact counts follow from the pin budget at PCB time.
 
 ---
 
