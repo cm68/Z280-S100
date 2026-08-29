@@ -245,12 +245,13 @@ It only *reads* `pRDY`/`XRDY`/`SIXTN`; the open-drain drive of those lives in B.
 
 ### Data-path CPLD (B) — the mover
 
-Hangs `AD0–15` (16 bidir) on the shared AD bus and `DO0–7`/`DI0–7` (16 bidir) straight on the S-100 edge, and does the IEEE-696 even/odd byte steering *inside* — there are no external data transceivers:
+Hangs `AD0–15` (16 bidir) on the shared AD bus and does the IEEE-696 even/odd byte steering *inside*, driving `DO0–7`/`DI0–7` out through two **74F245** transceivers — the ATF1508 macrocell outputs can't meet the IEEE-696 24 mA data-bus sink spec on their own:
 
 - **Byte mux (2×2 crossbar)** — `DO0–7` carries the even byte (A0=0), `DI0–7` the odd (A0=1); the mux steers each byte to the right `AD` lane and reverses for 8-bit split cycles.
+- **Data-bus buffers** — `DO_DIR`/`DI_DIR` outputs drive the two 74F245 `DIR` pins (`/OE` tied low); both are `DODSB`-gated so a temporary master can float the data drivers.
+- **Address latch** — the plain `A3–A15` half of the demux latch lives in two 74HC573s (`LATCH_LE = ~AS`, `/OE = SLAVE`), freeing pins for `DO_DIR`/`DI_DIR`; `A0` (byte lane) and `A1`/`A2` (burst counter) stay here.
 - **Slave handshake** — open-drain `SIXTN`/`pRDY`/`XRDY` drive.
-- **Buffer OE/DIR** — the address/status/control 74HCT245 drivers, gated by `ADSB`/`DODSB`/`SDSB`/`CDSB`.
-- **Address decode** — reads `A16–23`, emits `SRAM_WIN`/`FLASH_WIN`/`BANK` back to A.
+- **Buffer OE/DIR** — the address/status/control 74HCT245 drivers, gated by `ADSB`/`SDSB`/`CDSB`.
 
 ### Handoff between the two
 
@@ -263,12 +264,12 @@ B ──► A:  SRAM_WIN · FLASH_WIN · BANK
 
 ### Pin budgets
 
-| CPLD | Inputs | Bidir | Outputs | Total | General I/O (ex-JTAG) |
-|---|---|---|---|---|---|
-| A — control | 29 | 0 | 32 | 61 | 57 |
-| B — data path | 23 | 32 | 12 | 67 | 63 |
+| CPLD | Inputs | Bidir | Outputs | Total signals |
+|---|---|---|---|---|
+| A — control | 25 | 8 | 28 | 61 |
+| B — data path | 11 | 33 | 6 | 50 |
 
-Both fit the 64 general I/O; the four JTAG pins are dedicated on the 84-pin PLCC. The 7 ns grade is fine — two parts cost nothing new when they're already on hand.
+Both fit the 60 general I/O + GCK1 on the 84-pin PLCC (the four JTAG pins are dedicated). The 7 ns grade is fine — two parts cost nothing new when they're already on hand. Moving the `A3–A15` latch out to the 74HC573s dropped the data CPLD from ~100% I/O to 53/64 (82%).
 
 ### JTAG programming
 
@@ -297,13 +298,14 @@ One 1×6 header programs both parts in a single chain: `TCK`/`TMS` wired in para
 | U1 | Zilog Z280MPU | 68-pin PLCC (or PGA); OPT tied high |
 | U4 | Microchip ATF1508AS | 84-pin PLCC, 7 ns — control CPLD (A) |
 | U5 | Microchip ATF1508AS | 84-pin PLCC, 7 ns — data-path CPLD (B) |
-| U2–U3 | 74HC573 ×2 | address demux latch (AD0-15 → LA0-15) |
+| U2–U3 | 74HC573 ×2 | address demux latch A3–A15 (`LATCH_LE = ~AS`, `/OE = SLAVE`; A0/A1/A2 stay in CPLD B) |
 | U6–U9 | IS61C5128AS-25 ×4 | 512K×8, 25 ns SRAM = 2 MB word-wide, two banks (on DIP carriers) |
 | U10–U11 | AT28C256 ×2 | 32K×8 EEPROM = 64 KB boot (28-pin DIP, JEDEC; no density jumpers) |
 | U15–U17 | 74HCT245 ×3 | S-100 address drivers (A0–23) |
 | U18 | 74HCT245 | S-100 status driver |
 | U19 | 74HCT245 | S-100 control driver |
 | U20 | 74HCT245 | pHLDA driver — one signal, full part (DIP-only constraint) |
+| U25–U26 | 74F245 ×2 | S-100 data-bus transceivers (DO0-7, DI0-7) — 64 mA sink / 15 mA source meets IEEE-696 |
 | U14 | MAX232 (or 1488/1489) | console level shifter |
 | U13 | DS1813 | reset supervisor |
 | U12 | PSU5a switcher | +5 V from +8 V rail, 3 A, no heatsink |
@@ -313,7 +315,7 @@ One 1×6 header programs both parts in a single chain: `TCK`/`TMS` wired in para
 | U21 | 74HCT244 | tri-state BTI driver — presents the strap value on AD0-7 during reset, high-Z after |
 | — | S-100 edge connector | 100-pin, gold fingers |
 
-> The four `74HCT245` data transceivers from the single-CPLD rev are gone — byte steering lives inside CPLD B. The six address/status/control/pHLDA drivers (U15–U20) remain; exact counts follow from the pin budget at PCB time.
+> Byte steering lives inside CPLD B, but the S-100 data lanes are now driven through two 74F245 transceivers (U25/U26) — the ATF1508 outputs can't meet the IEEE-696 data-bus drive spec. The address/status/control/pHLDA drivers (U15–U20) are 74HCT245; exact counts follow from the pin budget at PCB time.
 
 ---
 

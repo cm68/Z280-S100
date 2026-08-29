@@ -1,7 +1,7 @@
 Name     Z280 S-100 CPU card - AD / data-path CPLD ;
 PartNo   ATF1508 ;
 Date     2026-08-27 ;
-Revision 1 ;
+Revision 2 ;
 Designer ;
 Company  ;
 Assembly ;
@@ -12,28 +12,34 @@ Device   f1508ispplcc84 ;
  * Z280 S-100 CPU card - AD CPLD (CPLD 1)
  *
  * Sole owner of the multiplexed Z-BUS. Everything that MOVES BITS lives here:
- *   - the AD0-15 address demux latch (replaces the two 74HC573s)
- *   - the 2-bit burst address counter (was in the control CPLD)
- *   - the IEEE-696 even/odd byte mux to DO0-7 / DI0-7
+ *   - the AD0-15 byte mux to the S-100 DO/DI lanes (through two 74F245s)
+ *   - the 2-bit burst address counter (A1/A2) + the byte lane (A0)
  *
  * It decides nothing. The control CPLD (CPLD 2) hands it four pre-qualified
  * steering terms - MST_RD, MST_WR, SLV_RD, SLV_WR - plus XFR16, SPLIT and
  * SLAVE, and gets back LA0 (the byte-lane bit) which only this part can see.
  *
- * A0-15 drives the on-card SRAM/flash address AND the S-100 address 245s. It
- * floats on SLAVE, because a temporary master drives the address inward through
- * the reversed 245s.
+ * A0-A2 drive the on-card SRAM/flash address AND the S-100 address 245s. The
+ * plain A3-A15 address bits moved OUT to two 74HC573 latches (LATCH_LE = ~AS)
+ * to make room for the data-bus buffer DIRs; those 573s float their Q outputs
+ * on SLAVE exactly as the old in-CPLD register did. A0 stays bidirectional so
+ * a temporary master can drive S-100 A0 inward through the reversed 245s.
+ *
+ * The S-100 DO0-7 / DI0-7 lanes are NOT driven directly any more. This part's
+ * CPLD_DO/CPLD_DI pins feed the A-side of two 74F245 transceivers whose B-side
+ * is the backplane; DO_DIR / DI_DIR are their DIR pins (1 = A->B = drive). The
+ * 245 /OE is tied low -- a 245 in receive mode never drives the bus, so DIR is
+ * the only control that matters.
  *
  * Pinout: ATF1508AS 84-pin PLCC. JTAG = TDI 14 / TMS 23 / TCK 62 / TDO 71.
  * DEDICATED inputs: GCLR=1, OE2=2, GCLK1=83, OE1=84 (tied +5V in the schematic
- * except GCLK1=83 = Z_CLK_IN). The 60 general I/O pins are all used + pin 83.
+ * except GCLK1=83 = Z_CLK_IN). ~50 general I/O used after the re-partition.
  * ========================================================================== */
 
 /* *************** INPUTS *********************/
 PIN 83  = Z_CLK_IN;    /* GCLK1 - bus clock, drives the burst counter */
 PIN 4   = Z_AS;        /* Z-BUS address strobe, active low */
 PIN 5   = Z_DS;        /* Z-BUS data strobe, active low - burst increment */
-PIN 6   = S100_DIR;    /* 245 direction (= !SLAVE), drives all 245 DIR pins */
 PIN 8   = S100_DODSB;  /* data-out disable - gates DO/DI drive */
 PIN 9   = MST_RD;      /* from 2: master S-100 read  (drive AD from bus) */
 PIN 10  = MST_WR;      /* from 2: master S-100 write (drive DO/DI from AD) */
@@ -46,31 +52,24 @@ PIN 62  = TCK;         /* JTAG */
 PIN 23  = TMS;
 PIN 14  = TDI;
 
-/* *************** OUTPUT TO CONTROL CPLD *********************/
+/* *************** OUTPUTS *********************/
 PIN 18  = LA0;         /* to 2: byte lane. Master = latched AD0 (+SPLIT),
                          * slave = the TMA's A0 read back off the A0 pin. */
+PIN 6   = LATCH_LE;    /* 74HC573 latch enable = !Z_AS (transparent while AS
+                         * is low, holds on the rising edge) */
+PIN 24  = DO_DIR;      /* 74F245 DO DIR: 1 = drive DO (CPLD -> bus) */
+PIN 25  = DI_DIR;      /* 74F245 DI DIR: 1 = drive DI (CPLD -> bus) */
 
-/* *************** LATCHED ADDRESS *********************/
-/* Drives on-card SRAM/flash address and the S-100 address 245 inputs. A0 is
- * bidirectional (read as slave for the byte lane); A1/A2 are the burst counter. */
+/* *************** LATCHED ADDRESS (low 3 bits) *********************/
+/* A0 = byte lane, A1/A2 = burst counter. A3-A15 are the plain address bits,
+ * now latched externally by two 74HC573s (see LATCH_LE). A0 is bidirectional
+ * (read as slave for the byte lane); A1/A2 are the burst counter. */
 PIN 20  = A0;
 PIN 21  = A1;
 PIN 22  = A2;
-PIN 24  = A3;
-PIN 25  = A4;
-PIN 27  = A5;
-PIN 28  = A6;
-PIN 29  = A7;
-PIN 30  = A8;
-PIN 31  = A9;
-PIN 33  = A10;
-PIN 34  = A11;
-PIN 35  = A12;
-PIN 36  = A13;
-PIN 37  = A14;
-PIN 39  = A15;
 
 /* *************** DATA BIDIR PINS *********************/
+/* CPLD_DO/CPLD_DI feed the 74F245 A-sides; the 245 B-sides are S100_DO/DI. */
 PIN 40  = AD0;
 PIN 41  = AD1;
 PIN 44  = AD2;
@@ -87,43 +86,31 @@ PIN 56  = AD12;
 PIN 57  = AD13;
 PIN 58  = AD14;
 PIN 60  = AD15;
-PIN 61  = S100_DO0;
-PIN 63  = S100_DO1;
-PIN 64  = S100_DO2;
-PIN 65  = S100_DO3;
-PIN 67  = S100_DO4;
-PIN 68  = S100_DO5;
-PIN 69  = S100_DO6;
-PIN 70  = S100_DO7;
-PIN 73  = S100_DI0;
-PIN 74  = S100_DI1;
-PIN 75  = S100_DI2;
-PIN 76  = S100_DI3;
-PIN 77  = S100_DI4;
-PIN 79  = S100_DI5;
-PIN 80  = S100_DI6;
-PIN 81  = S100_DI7;
+PIN 61  = CPLD_DO0;
+PIN 63  = CPLD_DO1;
+PIN 64  = CPLD_DO2;
+PIN 65  = CPLD_DO3;
+PIN 67  = CPLD_DO4;
+PIN 68  = CPLD_DO5;
+PIN 69  = CPLD_DO6;
+PIN 70  = CPLD_DO7;
+PIN 73  = CPLD_DI0;
+PIN 74  = CPLD_DI1;
+PIN 75  = CPLD_DI2;
+PIN 76  = CPLD_DI3;
+PIN 77  = CPLD_DI4;
+PIN 79  = CPLD_DI5;
+PIN 80  = CPLD_DI6;
+PIN 81  = CPLD_DI7;
 PIN 71  = TDO;          /* JTAG */
 
 /* *************** ADDRESS REGISTER *************** */
 /* Edge-triggered on AS rising: the Z-BUS presents a valid address before AS
- * deasserts, so the rising edge is the natural capture point. */
+ * deasserts, so the rising edge is the natural capture point. Only A0 remains
+ * here; A3-A15 are latched by the external 74HC573s. */
 node LA0R;              /* registered AD0 - the raw byte address */
 
 LA0R.CK = Z_AS;   LA0R.D = AD0;
-A3.CK  = Z_AS;    A3.D  = AD3;
-A4.CK  = Z_AS;    A4.D  = AD4;
-A5.CK  = Z_AS;    A5.D  = AD5;
-A6.CK  = Z_AS;    A6.D  = AD6;
-A7.CK  = Z_AS;    A7.D  = AD7;
-A8.CK  = Z_AS;    A8.D  = AD8;
-A9.CK  = Z_AS;    A9.D  = AD9;
-A10.CK = Z_AS;    A10.D = AD10;
-A11.CK = Z_AS;    A11.D = AD11;
-A12.CK = Z_AS;    A12.D = AD12;
-A13.CK = Z_AS;    A13.D = AD13;
-A14.CK = Z_AS;    A14.D = AD14;
-A15.CK = Z_AS;    A15.D = AD15;
 
 /* *************** BURST ADDRESS COUNTER *************** */
 /* Loads the latched address on AS, increments on each DS stroke. A normal
@@ -138,9 +125,8 @@ A2.CK = Z_CLK_IN;
 A1.D = (LOAD & AD1) # (!LOAD & (A1 $ COUNT));
 A2.D = (LOAD & AD2) # (!LOAD & (A2 $ (COUNT & A1)));
 
-/* 245 direction: drive out as master, receive as slave. One pin feeds every
- * 245 DIR (address, status, control) since they are all = !SLAVE. */
-S100_DIR = !SLAVE;
+/* 573 latch enable: transparent while AS is low, holds on the rising edge. */
+LATCH_LE = !Z_AS;
 
 /* *************** BYTE LANE *************** */
 /* S-100 A0 carries the SPLIT-advanced byte address; local SRAM only ever sees
@@ -151,18 +137,23 @@ A0 = LA0R # SPLIT;
  * TMA's A0 read off the pin as slave. */
 LA0 = (!SLAVE & (LA0R # SPLIT)) # (SLAVE & A0);
 
-/* Float the whole address bus when a temporary master owns it. */
-A0.OE  = !SLAVE;   A1.OE  = !SLAVE;   A2.OE  = !SLAVE;   A3.OE  = !SLAVE;
-A4.OE  = !SLAVE;   A5.OE  = !SLAVE;   A6.OE  = !SLAVE;   A7.OE  = !SLAVE;
-A8.OE  = !SLAVE;   A9.OE  = !SLAVE;   A10.OE = !SLAVE;   A11.OE = !SLAVE;
-A12.OE = !SLAVE;   A13.OE = !SLAVE;   A14.OE = !SLAVE;   A15.OE = !SLAVE;
+/* Float the whole address bus when a temporary master owns it. The 74HC573s
+ * float A3-A15 via their /OE tied to SLAVE the same way. */
+A0.OE  = !SLAVE;   A1.OE  = !SLAVE;   A2.OE  = !SLAVE;
 
 /* *************** DIRECTION *************** */
 BYTE_SEL = LA0R # SPLIT;
 
 DRIVE_AD = MST_RD # SLV_WR;                              /* bus -> AD */
-DRIVE_DO = (MST_WR # (SLV_RD & XFR16)) & S100_DODSB;     /* AD -> DO */
-DRIVE_DI = ((MST_WR & XFR16) # SLV_RD) & S100_DODSB;     /* AD -> DI */
+DRIVE_DO = (MST_WR # (SLV_RD & XFR16)) & S100_DODSB;     /* AD -> DO (buried) */
+DRIVE_DI = ((MST_WR & XFR16) # SLV_RD) & S100_DODSB;     /* AD -> DI (buried) */
+
+/* The 74F245 DIR pins mirror the buried drive enables. A pin output can't
+ * feed another pin's .OE product term directly -- that trips the fitter's
+ * extra-wiring check -- so the .OE equations below use the buried nodes, and
+ * only the pins' own equations reference DO_DIR/DI_DIR. */
+DO_DIR = DRIVE_DO;
+DI_DIR = DRIVE_DI;
 
 /* Which S-100 lane feeds each AD byte on a master read / slave write. */
 AD_EVEN_SRC_DO = (MST_RD & XFR16) # (SLV_WR & !BYTE_SEL);
@@ -172,22 +163,22 @@ AD_ODD_SRC_DO  = SLV_WR & BYTE_SEL;
 
 /* *************** BYTE MUX *************** */
 /* The Z280 byte-swap puts even (A0=0) on AD8-15, odd (A0=1) on AD0-7. */
-AD0  = (AD_ODD_SRC_DI & S100_DI0) # (AD_ODD_SRC_DO & S100_DO0);
-AD1  = (AD_ODD_SRC_DI & S100_DI1) # (AD_ODD_SRC_DO & S100_DO1);
-AD2  = (AD_ODD_SRC_DI & S100_DI2) # (AD_ODD_SRC_DO & S100_DO2);
-AD3  = (AD_ODD_SRC_DI & S100_DI3) # (AD_ODD_SRC_DO & S100_DO3);
-AD4  = (AD_ODD_SRC_DI & S100_DI4) # (AD_ODD_SRC_DO & S100_DO4);
-AD5  = (AD_ODD_SRC_DI & S100_DI5) # (AD_ODD_SRC_DO & S100_DO5);
-AD6  = (AD_ODD_SRC_DI & S100_DI6) # (AD_ODD_SRC_DO & S100_DO6);
-AD7  = (AD_ODD_SRC_DI & S100_DI7) # (AD_ODD_SRC_DO & S100_DO7);
-AD8  = (AD_EVEN_SRC_DO & S100_DO0) # (AD_EVEN_SRC_DI & S100_DI0);
-AD9  = (AD_EVEN_SRC_DO & S100_DO1) # (AD_EVEN_SRC_DI & S100_DI1);
-AD10 = (AD_EVEN_SRC_DO & S100_DO2) # (AD_EVEN_SRC_DI & S100_DI2);
-AD11 = (AD_EVEN_SRC_DO & S100_DO3) # (AD_EVEN_SRC_DI & S100_DI3);
-AD12 = (AD_EVEN_SRC_DO & S100_DO4) # (AD_EVEN_SRC_DI & S100_DI4);
-AD13 = (AD_EVEN_SRC_DO & S100_DO5) # (AD_EVEN_SRC_DI & S100_DI5);
-AD14 = (AD_EVEN_SRC_DO & S100_DO6) # (AD_EVEN_SRC_DI & S100_DI6);
-AD15 = (AD_EVEN_SRC_DO & S100_DO7) # (AD_EVEN_SRC_DI & S100_DI7);
+AD0  = (AD_ODD_SRC_DI & CPLD_DI0) # (AD_ODD_SRC_DO & CPLD_DO0);
+AD1  = (AD_ODD_SRC_DI & CPLD_DI1) # (AD_ODD_SRC_DO & CPLD_DO1);
+AD2  = (AD_ODD_SRC_DI & CPLD_DI2) # (AD_ODD_SRC_DO & CPLD_DO2);
+AD3  = (AD_ODD_SRC_DI & CPLD_DI3) # (AD_ODD_SRC_DO & CPLD_DO3);
+AD4  = (AD_ODD_SRC_DI & CPLD_DI4) # (AD_ODD_SRC_DO & CPLD_DO4);
+AD5  = (AD_ODD_SRC_DI & CPLD_DI5) # (AD_ODD_SRC_DO & CPLD_DO5);
+AD6  = (AD_ODD_SRC_DI & CPLD_DI6) # (AD_ODD_SRC_DO & CPLD_DO6);
+AD7  = (AD_ODD_SRC_DI & CPLD_DI7) # (AD_ODD_SRC_DO & CPLD_DO7);
+AD8  = (AD_EVEN_SRC_DO & CPLD_DO0) # (AD_EVEN_SRC_DI & CPLD_DI0);
+AD9  = (AD_EVEN_SRC_DO & CPLD_DO1) # (AD_EVEN_SRC_DI & CPLD_DI1);
+AD10 = (AD_EVEN_SRC_DO & CPLD_DO2) # (AD_EVEN_SRC_DI & CPLD_DI2);
+AD11 = (AD_EVEN_SRC_DO & CPLD_DO3) # (AD_EVEN_SRC_DI & CPLD_DI3);
+AD12 = (AD_EVEN_SRC_DO & CPLD_DO4) # (AD_EVEN_SRC_DI & CPLD_DI4);
+AD13 = (AD_EVEN_SRC_DO & CPLD_DO5) # (AD_EVEN_SRC_DI & CPLD_DI5);
+AD14 = (AD_EVEN_SRC_DO & CPLD_DO6) # (AD_EVEN_SRC_DI & CPLD_DI6);
+AD15 = (AD_EVEN_SRC_DO & CPLD_DO7) # (AD_EVEN_SRC_DI & CPLD_DI7);
 
 AD0.OE  = DRIVE_AD;   AD1.OE  = DRIVE_AD;   AD2.OE  = DRIVE_AD;
 AD3.OE  = DRIVE_AD;   AD4.OE  = DRIVE_AD;   AD5.OE  = DRIVE_AD;
@@ -196,30 +187,30 @@ AD9.OE  = DRIVE_AD;   AD10.OE = DRIVE_AD;   AD11.OE = DRIVE_AD;
 AD12.OE = DRIVE_AD;   AD13.OE = DRIVE_AD;   AD14.OE = DRIVE_AD;
 AD15.OE = DRIVE_AD;
 
-S100_DO0 = (BYTE_SEL & AD0) # (!BYTE_SEL & AD8);
-S100_DO1 = (BYTE_SEL & AD1) # (!BYTE_SEL & AD9);
-S100_DO2 = (BYTE_SEL & AD2) # (!BYTE_SEL & AD10);
-S100_DO3 = (BYTE_SEL & AD3) # (!BYTE_SEL & AD11);
-S100_DO4 = (BYTE_SEL & AD4) # (!BYTE_SEL & AD12);
-S100_DO5 = (BYTE_SEL & AD5) # (!BYTE_SEL & AD13);
-S100_DO6 = (BYTE_SEL & AD6) # (!BYTE_SEL & AD14);
-S100_DO7 = (BYTE_SEL & AD7) # (!BYTE_SEL & AD15);
+CPLD_DO0 = (BYTE_SEL & AD0) # (!BYTE_SEL & AD8);
+CPLD_DO1 = (BYTE_SEL & AD1) # (!BYTE_SEL & AD9);
+CPLD_DO2 = (BYTE_SEL & AD2) # (!BYTE_SEL & AD10);
+CPLD_DO3 = (BYTE_SEL & AD3) # (!BYTE_SEL & AD11);
+CPLD_DO4 = (BYTE_SEL & AD4) # (!BYTE_SEL & AD12);
+CPLD_DO5 = (BYTE_SEL & AD5) # (!BYTE_SEL & AD13);
+CPLD_DO6 = (BYTE_SEL & AD6) # (!BYTE_SEL & AD14);
+CPLD_DO7 = (BYTE_SEL & AD7) # (!BYTE_SEL & AD15);
 
-S100_DO0.OE = DRIVE_DO;   S100_DO1.OE = DRIVE_DO;
-S100_DO2.OE = DRIVE_DO;   S100_DO3.OE = DRIVE_DO;
-S100_DO4.OE = DRIVE_DO;   S100_DO5.OE = DRIVE_DO;
-S100_DO6.OE = DRIVE_DO;   S100_DO7.OE = DRIVE_DO;
+CPLD_DO0.OE = DRIVE_DO;   CPLD_DO1.OE = DRIVE_DO;
+CPLD_DO2.OE = DRIVE_DO;   CPLD_DO3.OE = DRIVE_DO;
+CPLD_DO4.OE = DRIVE_DO;   CPLD_DO5.OE = DRIVE_DO;
+CPLD_DO6.OE = DRIVE_DO;   CPLD_DO7.OE = DRIVE_DO;
 
-S100_DI0 = ((XFR16 # BYTE_SEL) & AD0) # (!(XFR16 # BYTE_SEL) & AD8);
-S100_DI1 = ((XFR16 # BYTE_SEL) & AD1) # (!(XFR16 # BYTE_SEL) & AD9);
-S100_DI2 = ((XFR16 # BYTE_SEL) & AD2) # (!(XFR16 # BYTE_SEL) & AD10);
-S100_DI3 = ((XFR16 # BYTE_SEL) & AD3) # (!(XFR16 # BYTE_SEL) & AD11);
-S100_DI4 = ((XFR16 # BYTE_SEL) & AD4) # (!(XFR16 # BYTE_SEL) & AD12);
-S100_DI5 = ((XFR16 # BYTE_SEL) & AD5) # (!(XFR16 # BYTE_SEL) & AD13);
-S100_DI6 = ((XFR16 # BYTE_SEL) & AD6) # (!(XFR16 # BYTE_SEL) & AD14);
-S100_DI7 = ((XFR16 # BYTE_SEL) & AD7) # (!(XFR16 # BYTE_SEL) & AD15);
+CPLD_DI0 = ((XFR16 # BYTE_SEL) & AD0) # (!(XFR16 # BYTE_SEL) & AD8);
+CPLD_DI1 = ((XFR16 # BYTE_SEL) & AD1) # (!(XFR16 # BYTE_SEL) & AD9);
+CPLD_DI2 = ((XFR16 # BYTE_SEL) & AD2) # (!(XFR16 # BYTE_SEL) & AD10);
+CPLD_DI3 = ((XFR16 # BYTE_SEL) & AD3) # (!(XFR16 # BYTE_SEL) & AD11);
+CPLD_DI4 = ((XFR16 # BYTE_SEL) & AD4) # (!(XFR16 # BYTE_SEL) & AD12);
+CPLD_DI5 = ((XFR16 # BYTE_SEL) & AD5) # (!(XFR16 # BYTE_SEL) & AD13);
+CPLD_DI6 = ((XFR16 # BYTE_SEL) & AD6) # (!(XFR16 # BYTE_SEL) & AD14);
+CPLD_DI7 = ((XFR16 # BYTE_SEL) & AD7) # (!(XFR16 # BYTE_SEL) & AD15);
 
-S100_DI0.OE = DRIVE_DI;   S100_DI1.OE = DRIVE_DI;
-S100_DI2.OE = DRIVE_DI;   S100_DI3.OE = DRIVE_DI;
-S100_DI4.OE = DRIVE_DI;   S100_DI5.OE = DRIVE_DI;
-S100_DI6.OE = DRIVE_DI;   S100_DI7.OE = DRIVE_DI;
+CPLD_DI0.OE = DRIVE_DI;   CPLD_DI1.OE = DRIVE_DI;
+CPLD_DI2.OE = DRIVE_DI;   CPLD_DI3.OE = DRIVE_DI;
+CPLD_DI4.OE = DRIVE_DI;   CPLD_DI5.OE = DRIVE_DI;
+CPLD_DI6.OE = DRIVE_DI;   CPLD_DI7.OE = DRIVE_DI;

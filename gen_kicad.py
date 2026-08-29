@@ -152,23 +152,12 @@ CPLD_B_IO = [
     ("SPLIT","I"),
     ("SLAVE","I"),
     ("LA0","O"),
-    ("S100_DIR","O"),
+    ("LATCH_LE","O"),
+    ("DO_DIR","O"),
+    ("DI_DIR","O"),
     ("A0","B"),
     ("A1","O"),
     ("A2","O"),
-    ("A3","O"),
-    ("A4","O"),
-    ("A5","O"),
-    ("A6","O"),
-    ("A7","O"),
-    ("A8","O"),
-    ("A9","O"),
-    ("A10","O"),
-    ("A11","O"),
-    ("A12","O"),
-    ("A13","O"),
-    ("A14","O"),
-    ("A15","O"),
     ("AD0","B"),
     ("AD1","B"),
     ("AD2","B"),
@@ -185,22 +174,22 @@ CPLD_B_IO = [
     ("AD13","B"),
     ("AD14","B"),
     ("AD15","B"),
-    ("S100_DO0","B"),
-    ("S100_DO1","B"),
-    ("S100_DO2","B"),
-    ("S100_DO3","B"),
-    ("S100_DO4","B"),
-    ("S100_DO5","B"),
-    ("S100_DO6","B"),
-    ("S100_DO7","B"),
-    ("S100_DI0","B"),
-    ("S100_DI1","B"),
-    ("S100_DI2","B"),
-    ("S100_DI3","B"),
-    ("S100_DI4","B"),
-    ("S100_DI5","B"),
-    ("S100_DI6","B"),
-    ("S100_DI7","B"),
+    ("CPLD_DO0","B"),
+    ("CPLD_DO1","B"),
+    ("CPLD_DO2","B"),
+    ("CPLD_DO3","B"),
+    ("CPLD_DO4","B"),
+    ("CPLD_DO5","B"),
+    ("CPLD_DO6","B"),
+    ("CPLD_DO7","B"),
+    ("CPLD_DI0","B"),
+    ("CPLD_DI1","B"),
+    ("CPLD_DI2","B"),
+    ("CPLD_DI3","B"),
+    ("CPLD_DI4","B"),
+    ("CPLD_DI5","B"),
+    ("CPLD_DI6","B"),
+    ("CPLD_DI7","B"),
     ("TCK","I"),
     ("TMS","I"),
     ("TDI","I"),
@@ -211,15 +200,13 @@ CPLD_B_IO = [
 _B_PIN = {
     "Z_CLK_IN": 83, "Z_AS": 4, "Z_DS": 5, "S100_DODSB": 8, "MST_RD": 9, "MST_WR": 10,
     "SLV_RD": 11, "SLV_WR": 12, "XFR16": 15, "SPLIT": 16, "SLAVE": 17, "LA0": 18,
-    "S100_DIR": 6, "A0": 20, "A1": 21, "A2": 22, "A3": 24, "A4": 25,
-    "A5": 27, "A6": 28, "A7": 29, "A8": 30, "A9": 31, "A10": 33,
-    "A11": 34, "A12": 35, "A13": 36, "A14": 37, "A15": 39, "AD0": 40,
-    "AD1": 41, "AD2": 44, "AD3": 45, "AD4": 46, "AD5": 48, "AD6": 49,
+    "LATCH_LE": 6, "DO_DIR": 24, "DI_DIR": 25, "A0": 20, "A1": 21, "A2": 22,
+    "AD0": 40, "AD1": 41, "AD2": 44, "AD3": 45, "AD4": 46, "AD5": 48, "AD6": 49,
     "AD7": 50, "AD8": 51, "AD9": 52, "AD10": 54, "AD11": 55, "AD12": 56,
-    "AD13": 57, "AD14": 58, "AD15": 60, "S100_DO0": 61, "S100_DO1": 63, "S100_DO2": 64,
-    "S100_DO3": 65, "S100_DO4": 67, "S100_DO5": 68, "S100_DO6": 69, "S100_DO7": 70, "S100_DI0": 73,
-    "S100_DI1": 74, "S100_DI2": 75, "S100_DI3": 76, "S100_DI4": 77, "S100_DI5": 79, "S100_DI6": 80,
-    "S100_DI7": 81, "TCK": 62, "TMS": 23, "TDI": 14, "TDO": 71,
+    "AD13": 57, "AD14": 58, "AD15": 60, "CPLD_DO0": 61, "CPLD_DO1": 63, "CPLD_DO2": 64,
+    "CPLD_DO3": 65, "CPLD_DO4": 67, "CPLD_DO5": 68, "CPLD_DO6": 69, "CPLD_DO7": 70, "CPLD_DI0": 73,
+    "CPLD_DI1": 74, "CPLD_DI2": 75, "CPLD_DI3": 76, "CPLD_DI4": 77, "CPLD_DI5": 79, "CPLD_DI6": 80,
+    "CPLD_DI7": 81, "TCK": 62, "TMS": 23, "TDI": 14, "TDO": 71,
 }
 _cpld_b_pins = [(str(_B_PIN[name]), name, elec) for name, elec in CPLD_B_IO]
 _cpld_b_pins += _ATF1508_POWER
@@ -263,6 +250,16 @@ PARTS["74HC573"] = ("U", "74HC573", "Package_DIP:DIP-20",
      ("17","Q5","T"),("18","Q6","T"),("19","Q7","T"),("20","+5V","W")])
 
 PARTS["74HCT245"] = ("U", "74HCT245", "Package_DIP:DIP-20",
+    [("1","DIR","I"),("2","A0","B"),("3","A1","B"),("4","A2","B"),
+     ("5","A3","B"),("6","A4","B"),("7","A5","B"),("8","A6","B"),
+     ("9","A7","B"),("10","GND","W"),("11","B0","B"),("12","B1","B"),
+     ("13","B2","B"),("14","B3","B"),("15","B4","B"),("16","B5","B"),
+     ("17","B6","B"),("18","B7","B"),("19","OE","I"),("20","+5V","W")])
+
+# Same pinout as 74HCT245, but a bipolar bus transceiver rated for the
+# IEEE-696 data bus: 64 mA sink / 15 mA source. The two S-100 data lanes
+# (DO0-7, DI0-7) use these instead of the CPLD driving the backplane directly.
+PARTS["74F245"] = ("U", "74F245", "Package_DIP:DIP-20",
     [("1","DIR","I"),("2","A0","B"),("3","A1","B"),("4","A2","B"),
      ("5","A3","B"),("6","A4","B"),("7","A5","B"),("8","A6","B"),
      ("9","A7","B"),("10","GND","W"),("11","B0","B"),("12","B1","B"),
@@ -596,6 +593,22 @@ def single_sheet():
     # CPLD
     inst.append(emit_symbol_instance("ATF1508", "U4", 162.56, 25.4, cpld_a_nets()))
     inst.append(emit_symbol_instance("ATF1508B", "U5", 162.56, 152.4, cpld_b_nets()))
+    # Address demux latch: A3-A15 moved back out of CPLD B into two 74HC573s.
+    # LE = LATCH_LE (= ~AS from the CPLD, transparent while AS is low, holds on
+    # the rising edge); /OE = SLAVE so the latch floats its Q outputs when a
+    # temporary master drives the address inward through the reversed 245s.
+    inst.append(emit_symbol_instance("74HC573", "U2", 294.64, 190.0,
+                 {"1":"SLAVE",
+                  "2":"AD3","3":"AD4","4":"AD5","5":"AD6","6":"AD7","7":"AD8","8":"AD9","9":"AD10",
+                  "10":"GND","11":"LATCH_LE",
+                  "12":"A3","13":"A4","14":"A5","15":"A6","16":"A7","17":"A8","18":"A9","19":"A10",
+                  "20":"+5V"}))
+    inst.append(emit_symbol_instance("74HC573", "U3", 294.64, 215.0,
+                 {"1":"SLAVE",
+                  "2":"AD11","3":"AD12","4":"AD13","5":"AD14","6":"AD15","7":"GND","8":"GND","9":"GND",
+                  "10":"GND","11":"LATCH_LE",
+                  "12":"A11","13":"A12","14":"A13","15":"A14","16":"A15",
+                  "20":"+5V"}))
     # Address decode (external, on the inboard A16-23 net so slave mode works):
     # 74F138 A21-23 -> SRAM_WIN; 74F521 (0xF0) -> FLASH_WIN; 74F521 (2MB strap) -> SLAVE_WIN.
     inst.append(emit_symbol_instance("74F138", "U22", 360.0, 60.0,
@@ -627,8 +640,17 @@ def single_sheet():
                  flash_nets([f"AD{i}" for i in range(8,16)])))
     inst.append(emit_symbol_instance("AT28C256", "U11", 294.64, 76.2,
                  flash_nets([f"AD{i}" for i in range(8)])))
-    # S-100 connector (the byte-steered data path lives inside CPLD B / U24)
+    # S-100 connector. The data path is byte-steered inside CPLD B, then driven
+    # onto DO/DI through two 74F245 transceivers (the CPLD alone can't meet the
+    # IEEE-696 24 mA bus-drive spec).
     inst.append(emit_symbol_instance("S100_100", "J8", 421.64, 25.4, s100_nets()))
+    # Data bus transceivers: CPLD byte-mux (CPLD_DO/CPLD_DI) <-> S-100 DO/DI.
+    # DIR = DO_DIR / DI_DIR (1 = A->B = drive the bus); /OE tied low, since a
+    # 245 in receive mode never drives the bus -- only DIR has to be correct.
+    inst.append(emit_symbol_instance("74F245", "U25", 360.0, 165.0,
+                 buf_nets([f"CPLD_DO{i}" for i in range(8)], [f"S100_DO{i}" for i in range(8)], "DO_DIR", "GND")))
+    inst.append(emit_symbol_instance("74F245", "U26", 360.0, 200.0,
+                 buf_nets([f"CPLD_DI{i}" for i in range(8)], [f"S100_DI{i}" for i in range(8)], "DI_DIR", "GND")))
     # Power / clock / reset / console
     inst.append(emit_symbol_instance("LM7805", "U12", 294.64, 139.7,
                  {"1":"+8V","2":"GND","3":"+5V"}))
@@ -645,21 +667,23 @@ def single_sheet():
     inst.append(emit_symbol_instance("SERIAL", "J7", 358.14, 215.9,
                  {"1":"MAX_RS232_TX","2":"MAX_RS232_RX","3":"GND","4":"GND",
                   "5":"GND","6":"GND","7":"GND","8":"GND","9":"GND","10":"GND"}))
-    # S-100 drive buffers (74HCT245): address + status + control
+    # S-100 drive buffers (74HCT245): address + status + control. DIR comes
+    # straight from Z_BUSACK (= !SLAVE = MASTER): drive out as master, receive
+    # as slave. (The data-path CPLD no longer emits S100_DIR -- it's redundant.)
     inst.append(emit_symbol_instance("74HCT245", "U15", 502.92, 25.4,
-                 buf_nets(["A0"] + [f"LA{i}" for i in range(1,8)], [f"S100_A{i}" for i in range(8)], "S100_DIR", "S100_A_OE")))
+                 buf_nets([f"A{i}" for i in range(8)], [f"S100_A{i}" for i in range(8)], "Z_BUSACK", "S100_A_OE")))
     inst.append(emit_symbol_instance("74HCT245", "U16", 502.92, 63.5,
-                 buf_nets([f"LA{i}" for i in range(8,16)], [f"S100_A{i}" for i in range(8,16)], "S100_DIR", "S100_A_OE")))
+                 buf_nets([f"A{i}" for i in range(8,16)], [f"S100_A{i}" for i in range(8,16)], "Z_BUSACK", "S100_A_OE")))
     inst.append(emit_symbol_instance("74HCT245", "U17", 502.92, 101.6,
-                 buf_nets([f"A{i}" for i in range(16,24)], [f"S100_A{i}" for i in range(16,24)], "S100_DIR", "S100_A_OE")))
+                 buf_nets([f"A{i}" for i in range(16,24)], [f"S100_A{i}" for i in range(16,24)], "Z_BUSACK", "S100_A_OE")))
     inst.append(emit_symbol_instance("74HCT245", "U18", 502.92, 139.7,
                  buf_nets(["CPLD_sMEMR","CPLD_sWO","CPLD_sINP","CPLD_sOUT","CPLD_sINTA","CPLD_sHLTA","CPLD_sXTRQ"],
                           ["S100_sMEMR","S100_sWO","S100_sINP","S100_sOUT","S100_sINTA","S100_sHLTA","S100_sXTRQ"],
-                          "S100_DIR", "S100_S_OE")))
+                          "Z_BUSACK", "S100_S_OE")))
     inst.append(emit_symbol_instance("74HCT245", "U19", 502.92, 177.8,
                  buf_nets(["CPLD_pSYNC","CPLD_pSTVAL","CPLD_pDBIN","CPLD_pWR"],
                           ["S100_pSYNC","S100_pSTVAL","S100_pDBIN","S100_pWR"],
-                          "S100_DIR", "S100_C_OE")))
+                          "Z_BUSACK", "S100_C_OE")))
     # pHLDA is the permanent master's *exclusive* output, asserted while a TMA
     # holds the bus -- opposite direction from pSYNC/pDBIN/pWR -- so it gets its
     # own always-on driver (74HCT245 strapped A->B). Unused A inputs tied low.
@@ -727,8 +751,9 @@ verification against datasheets before this schematic is PCB-ready.
   7/19/32/42/47/59/72/82. The four DEDICATED INPUT pins are GCLR = 1 (global
   clear, active low), OE2 = 2, GCLK1 = 83, OE1 = 84 — GCLR/OE1/OE2 are tied to
   +5V (inactive) on both CPLDs; GCLK1 = 83 carries Z_CLK_IN. Regular signals
-  must NOT sit on pins 1/2/84. Control fits at 59/64 I/O, data at 62/64 (96% —
-  the data CPLD is at its ceiling; the re-partition moves decode off it).
+  must NOT sit on pins 1/2/84. Control sits at 59/64 I/O; the data CPLD was at
+  62/64 until the A3–A15 latch moved back out to two 74HC573s (freeing pins for
+  the DO_DIR/DI_DIR buffer controls), so it now sits near 50/64.
 - **AT28C256 flash (U10/U11)**: 28-pin DIP, JEDEC 28C256 layout (A14=1, A12=2,
   A7=3 … A0=10, DQ0=11 … DQ7=19, CE#=20, A10=21, OE#=22, A11=23, A9=24, A8=25,
   A13=26, WE#=27, VCC=28, VSS=14). Word-addressed (flash A_n = byte A_{n+1}),
@@ -768,13 +793,29 @@ DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
 - Reset must be held low >=512 XTAL1 clocks (~21 us at 24 MHz); the DS1813's
   ~100 ms power-on reset easily satisfies this.
 
+## Data bus (74F245 transceivers, U25/U26)
+- The S-100 DO0-7 / DI0-7 lanes are NOT driven by the CPLD any more. CPLD B's
+  byte mux drives CPLD_DO0-7 / CPLD_DI0-7 into the A-side of two 74F245s whose
+  B-side is the backplane. 74F245 (64 mA sink / 15 mA source) meets the
+  IEEE-696 data-bus drive spec that the ATF1508 macrocell outputs cannot.
+- DIR = DO_DIR / DI_DIR from the data CPLD (1 = drive the bus). /OE is tied low:
+  a 245 in receive mode never drives the bus, so only DIR has to be right, and
+  the DIRs are gated by S100_DODSB so a temporary master can float our drivers.
+
+## Address latch (74HC573, U2/U3)
+- A3-A15 moved out of CPLD B into two 74HC573s to free pins for DO_DIR/DI_DIR.
+  LE = LATCH_LE (= ~AS: transparent while AS is low, holds on the rising edge);
+  /OE = SLAVE so the latch floats its Q outputs when a TMA drives address inward.
+  A0 (byte lane) and A1/A2 (burst counter) stay in the CPLD — they need the
+  SPLIT / load-count logic a plain latch can't do.
+- U2 latches AD3-AD10 -> A3-A10, U3 latches AD11-AD15 -> A11-A15 (D5-D7 tied
+  low, Q5-Q7 unused). The S-100 address 245s now take A0-A15 directly (the old
+  LA1-LA15 net names were a stale leftover from the in-CPLD latch).
+
 ## Wiring gaps (currently labeled but not fully connected)
 - Interrupts: S100_INT / S100_NMI route through the CPLD to Z_INT / Z_NMI.
 - Reset OR: DS1813 reset and S100_RESET must be OR'd before Z_RESET (diode-OR or
   CPLD input).
-- LATCH_LE = ~AS (the CPLD inverts Z_AS to drive the 74HC573 latch enable).
-- S-100 address drivers (A0-23, DO, status) need tri-state buffers (e.g. 74HCT244)
-  gated by S100_A_OE / ADSB / DODSB / SDSB / CDSB — not yet placed.
 - Power flags / ERC cleanup and decoupling caps not yet placed.
 """
 

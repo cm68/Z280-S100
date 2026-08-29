@@ -14,8 +14,9 @@ verification against datasheets before this schematic is PCB-ready.
   7/19/32/42/47/59/72/82. The four DEDICATED INPUT pins are GCLR = 1 (global
   clear, active low), OE2 = 2, GCLK1 = 83, OE1 = 84 — GCLR/OE1/OE2 are tied to
   +5V (inactive) on both CPLDs; GCLK1 = 83 carries Z_CLK_IN. Regular signals
-  must NOT sit on pins 1/2/84. Control fits at 59/64 I/O, data at 62/64 (96% —
-  the data CPLD is at its ceiling; the re-partition moves decode off it).
+  must NOT sit on pins 1/2/84. Control sits at 59/64 I/O; the data CPLD was at
+  62/64 until the A3–A15 latch moved back out to two 74HC573s (freeing pins for
+  the DO_DIR/DI_DIR buffer controls), so it now sits near 50/64.
 - **AT28C256 flash (U10/U11)**: 28-pin DIP, JEDEC 28C256 layout (A14=1, A12=2,
   A7=3 … A0=10, DQ0=11 … DQ7=19, CE#=20, A10=21, OE#=22, A11=23, A9=24, A8=25,
   A13=26, WE#=27, VCC=28, VSS=14). Word-addressed (flash A_n = byte A_{n+1}),
@@ -55,11 +56,27 @@ DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
 - Reset must be held low >=512 XTAL1 clocks (~21 us at 24 MHz); the DS1813's
   ~100 ms power-on reset easily satisfies this.
 
+## Data bus (74F245 transceivers, U25/U26)
+- The S-100 DO0-7 / DI0-7 lanes are NOT driven by the CPLD any more. CPLD B's
+  byte mux drives CPLD_DO0-7 / CPLD_DI0-7 into the A-side of two 74F245s whose
+  B-side is the backplane. 74F245 (64 mA sink / 15 mA source) meets the
+  IEEE-696 data-bus drive spec that the ATF1508 macrocell outputs cannot.
+- DIR = DO_DIR / DI_DIR from the data CPLD (1 = drive the bus). /OE is tied low:
+  a 245 in receive mode never drives the bus, so only DIR has to be right, and
+  the DIRs are gated by S100_DODSB so a temporary master can float our drivers.
+
+## Address latch (74HC573, U2/U3)
+- A3-A15 moved out of CPLD B into two 74HC573s to free pins for DO_DIR/DI_DIR.
+  LE = LATCH_LE (= ~AS: transparent while AS is low, holds on the rising edge);
+  /OE = SLAVE so the latch floats its Q outputs when a TMA drives address inward.
+  A0 (byte lane) and A1/A2 (burst counter) stay in the CPLD — they need the
+  SPLIT / load-count logic a plain latch can't do.
+- U2 latches AD3-AD10 -> A3-A10, U3 latches AD11-AD15 -> A11-A15 (D5-D7 tied
+  low, Q5-Q7 unused). The S-100 address 245s now take A0-A15 directly (the old
+  LA1-LA15 net names were a stale leftover from the in-CPLD latch).
+
 ## Wiring gaps (currently labeled but not fully connected)
 - Interrupts: S100_INT / S100_NMI route through the CPLD to Z_INT / Z_NMI.
 - Reset OR: DS1813 reset and S100_RESET must be OR'd before Z_RESET (diode-OR or
   CPLD input).
-- LATCH_LE = ~AS (the CPLD inverts Z_AS to drive the 74HC573 latch enable).
-- S-100 address drivers (A0-23, DO, status) need tri-state buffers (e.g. 74HCT244)
-  gated by S100_A_OE / ADSB / DODSB / SDSB / CDSB — not yet placed.
 - Power flags / ERC cleanup and decoupling caps not yet placed.

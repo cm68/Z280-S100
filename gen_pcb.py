@@ -325,6 +325,14 @@ COMPONENTS = [
     ("U18", "74HCT245 status",  "dip",  20, 0,   116, 133, 90),
     ("U19", "74HCT245 control", "dip",  20, 0,   143, 133, 90),
     ("U20", "74HCT245 pHLDA",   "dip",  20, 0,   170, 133, 90),
+    # S-100 data bus transceivers (74F245) + address demux latch (74HC573).
+    # The 74F245s drive DO0-7 / DI0-7 (the ATF1508 can't meet the IEEE-696
+    # 24 mA bus-drive spec); the 74HC573s latch A3-A15 back out of the data
+    # CPLD to make room for the DO_DIR/DI_DIR buffer controls.
+    ("U25", "74F245 DO",         "dip",  20, 0,   186, 50, 0),
+    ("U26", "74F245 DI",         "dip",  20, 0,   198, 50, 0),
+    ("U2",  "74HC573 latch",     "dip",  20, 0,   162, 50, 0),
+    ("U3",  "74HC573 latch",     "dip",  20, 0,   174, 50, 0),
     # decode + BTI buffer + config straps (top right)
     ("U22", "74F138 decode",    "dip",  16, 0,   200, 120, 90),
     ("U23", "74F521 flash win", "dip",  20, 0,   226, 120, 90),
@@ -366,10 +374,15 @@ CAPS = [
     ("C13", "0.1uF", "+5V",       "GND",     226, 113),
     ("C14", "0.1uF", "+5V",       "GND",     85, 60),
     ("C15", "0.1uF", "+5V",       "GND",     85, 34),
-    ("C16", "0.1uF", "+5V",       "GND",     165, 60),
-    ("C17", "0.1uF", "+5V",       "GND",     165, 34),
+    ("C16", "0.1uF", "+5V",       "GND",     130, 67),
+    ("C17", "0.1uF", "+5V",       "GND",     142, 67),
     ("C18", "0.1uF", "+5V", "GND",     248, 56),
     ("C19", "0.1uF", "+5V", "GND",     248, 34),
+    # bypass caps for the four new data/address parts (U2/U3 74HC573, U25/U26 74F245)
+    ("C20", "0.1uF", "+5V", "GND",     162, 68),
+    ("C21", "0.1uF", "+5V", "GND",     174, 68),
+    ("C22", "0.1uF", "+5V", "GND",     186, 68),
+    ("C23", "0.1uF", "+5V", "GND",     198, 68),
 ]
 
 
