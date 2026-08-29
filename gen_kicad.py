@@ -15,6 +15,10 @@ V = "20250114"  # KiCad 9
 def uid():
     return uuid.uuid4().hex
 
+# Root-sheet UUID: shared between the header (uuid ...) and every symbol's
+# instances-block path, so KiCad can resolve each per-instance reference.
+SHEET_UUID = None
+
 E = {"P": "passive", "I": "input", "O": "output", "B": "bidirectional",
      "W": "power_in", "T": "tri_state", "OC": "open_collector"}
 
@@ -472,7 +476,7 @@ def emit_symbol_instance(name, ref, sym_x, sym_y, nets):
     lines.append('    (at %.2f %.2f 0)' % (sym_x, sym_y))
     # fields_autoplaced no: these positions are deliberate, don't let KiCad
     # re-flow them back onto the body.
-    lines.append('    (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced no)')
+    lines.append('    (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced yes)')
     lines.append('    (uuid "%s")' % uid())
     lines.append('    (property "Reference" "%s" (at %.2f %.2f 0) (effects (font (size 1.27 1.27))))' % (ref, sym_x, sym_y - TEXT_REF_DY))
     lines.append('    (property "Value" "%s" (at %.2f %.2f 0) (effects (font (size 1.27 1.27))))' % (value, sym_x, sym_y - TEXT_VAL_DY))
@@ -480,7 +484,7 @@ def emit_symbol_instance(name, ref, sym_x, sym_y, nets):
     lines.append('    (property "Datasheet" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))')
     for num, nm, e in pins:
         lines.append('    (pin "%s" (uuid "%s"))' % (num, uid()))
-    lines.append('    (instances (project "z280-s100" (path "%s" (reference "%s") (unit 1))))' % (OUT, ref))
+    lines.append('    (instances (project "z280-s100" (path "/%s" (reference "%s") (unit 1))))' % (SHEET_UUID, ref))
     lines.append('  )')
     for num, net in nets.items():
         x, y, side = pin_abs(name, num, sym_x, sym_y)
@@ -498,10 +502,13 @@ def lib_symbols_section():
 
 def emit_sheet_file(title, instances, paper="A1"):
     body = ['(kicad_sch', '  (version %s)' % V, '  (generator "gen_kicad")',
-            '  (generator_version "9.0")', '  (uuid "%s")' % uid(),
+            '  (generator_version "9.0")', '  (uuid "%s")' % SHEET_UUID,
             '  (paper "%s")' % paper,
             '  (title_block (title "%s") (date "2026-08-20"))' % title]
     body.append(lib_symbols_section())
+    body.append('  (sheet_instances')
+    body.append('    (path "/" (page "1"))')
+    body.append('  )')
     body.extend(instances)
     body.append(')')
     return '\n'.join(body) + '\n'
@@ -575,6 +582,8 @@ def buf_nets(alist, blist, dirn, oen):
     return d
 
 def single_sheet():
+    global SHEET_UUID
+    SHEET_UUID = str(uuid.uuid4())
     inst = []
     # CPU (address is latched inside the AD CPLD, U5)
     z = {"40":"AD0","42":"AD1","43":"AD2","44":"AD3","54":"AD4","57":"AD5",
@@ -603,7 +612,7 @@ def single_sheet():
                   "10":"GND","11":"LATCH_LE",
                   "12":"A3","13":"A4","14":"A5","15":"A6","16":"A7","17":"A8","18":"A9","19":"A10",
                   "20":"+5V"}))
-    inst.append(emit_symbol_instance("74HC573", "U3", 294.64, 215.0,
+    inst.append(emit_symbol_instance("74HC573", "U3", 294.64, 229.0,
                  {"1":"SLAVE",
                   "2":"AD11","3":"AD12","4":"AD13","5":"AD14","6":"AD15","7":"GND","8":"GND","9":"GND",
                   "10":"GND","11":"LATCH_LE",
@@ -647,9 +656,9 @@ def single_sheet():
     # Data bus transceivers: CPLD byte-mux (CPLD_DO/CPLD_DI) <-> S-100 DO/DI.
     # DIR = DO_DIR / DI_DIR (1 = A->B = drive the bus); /OE tied low, since a
     # 245 in receive mode never drives the bus -- only DIR has to be correct.
-    inst.append(emit_symbol_instance("74F245", "U25", 360.0, 165.0,
+    inst.append(emit_symbol_instance("74F245", "U25", 360.0, 177.0,
                  buf_nets([f"CPLD_DO{i}" for i in range(8)], [f"S100_DO{i}" for i in range(8)], "DO_DIR", "GND")))
-    inst.append(emit_symbol_instance("74F245", "U26", 360.0, 200.0,
+    inst.append(emit_symbol_instance("74F245", "U26", 360.0, 215.0,
                  buf_nets([f"CPLD_DI{i}" for i in range(8)], [f"S100_DI{i}" for i in range(8)], "DI_DIR", "GND")))
     # Power / clock / reset / console
     inst.append(emit_symbol_instance("LM7805", "U12", 294.64, 139.7,
@@ -658,13 +667,13 @@ def single_sheet():
                  {"1":"XTALI","2":"XTALO"}))
     inst.append(emit_symbol_instance("DS1813", "U13", 294.64, 165.1,
                  {"1":"GND","2":"Z_RESET","3":"+5V"}))
-    inst.append(emit_symbol_instance("MAX232", "U14", 358.14, 177.8,
+    inst.append(emit_symbol_instance("MAX232", "U14", 421.64, 177.8,
                  {"1":"MAX_C1P","2":"MAX_VP","3":"MAX_C1M","4":"MAX_C2P",
                   "5":"MAX_C2M","6":"MAX_VM","7":"NC","8":"NC","9":"NC",
                   "10":"NC","11":"Z_TXD","12":"Z_RXD","13":"MAX_RS232_RX",
                   "14":"MAX_RS232_TX","15":"GND","16":"+5V"}))
     # Serial console header: RS-232 TX/RX + grounds, 2x5 IDC for a DB9 pigtail
-    inst.append(emit_symbol_instance("SERIAL", "J7", 358.14, 215.9,
+    inst.append(emit_symbol_instance("SERIAL", "J7", 421.64, 215.9,
                  {"1":"MAX_RS232_TX","2":"MAX_RS232_RX","3":"GND","4":"GND",
                   "5":"GND","6":"GND","7":"GND","8":"GND","9":"GND","10":"GND"}))
     # S-100 drive buffers (74HCT245): address + status + control. DIR comes
@@ -710,12 +719,12 @@ def single_sheet():
         _jp3x8_nets[str(3 * i + 1)] = "+5V"
         _jp3x8_nets[str(3 * i + 2)] = "BTI_AD%d" % i
         _jp3x8_nets[str(3 * i + 3)] = "GND"
-    inst.append(emit_symbol_instance("JP3x8", "J10", 560.0, 190.0, _jp3x8_nets))
+    inst.append(emit_symbol_instance("JP3x8", "J10", 88.0, 129.0, _jp3x8_nets))
     # The Z280 latches AD0-7 on the rising edge of RESET (p.545) and needs WAIT
     # held for 6 clocks past that edge (p.541). The control CPLD holds both WAIT
     # and this 244's /OE through a 6-clock counter, so AD0-7 stays driven for the
     # whole sample window. Jumpers J10-J17 select the value.
-    inst.append(emit_symbol_instance("74HCT244", "U21", 620.0, 190.0,
+    inst.append(emit_symbol_instance("74HCT244", "U21", 88.0, 186.0,
         {"1":"CFG_OE","19":"CFG_OE",
          "2":"BTI_AD0","18":"AD0",
          "4":"BTI_AD1","16":"AD1",

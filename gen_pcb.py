@@ -329,10 +329,10 @@ COMPONENTS = [
     # The 74F245s drive DO0-7 / DI0-7 (the ATF1508 can't meet the IEEE-696
     # 24 mA bus-drive spec); the 74HC573s latch A3-A15 back out of the data
     # CPLD to make room for the DO_DIR/DI_DIR buffer controls.
-    ("U25", "74F245 DO",         "dip",  20, 0,   186, 50, 0),
-    ("U26", "74F245 DI",         "dip",  20, 0,   198, 50, 0),
-    ("U2",  "74HC573 latch",     "dip",  20, 0,   162, 50, 0),
-    ("U3",  "74HC573 latch",     "dip",  20, 0,   174, 50, 0),
+    ("U25", "74F245 DO",         "dip",  20, 0,   190, 58, 90),
+    ("U26", "74F245 DI",         "dip",  20, 0,   190, 42, 90),
+    ("U2",  "74HC573 latch",     "dip",  20, 0,   160, 50, 0),
+    ("U3",  "74HC573 latch",     "dip",  20, 0,   170, 50, 0),
     # decode + BTI buffer + config straps (top right)
     ("U22", "74F138 decode",    "dip",  16, 0,   200, 120, 90),
     ("U23", "74F521 flash win", "dip",  20, 0,   226, 120, 90),
@@ -340,8 +340,8 @@ COMPONENTS = [
     ("U21", "74HCT244 BTI",     "dip",  20, 0,   172, 120, 90),
     ("J10", "Config (3x8)",      "hdr3x8", 8, 2.54, 218, 110, 90),
     # console / power / clock / reset
-    ("U14", "MAX232",           "dip",  16, 0,    20,  90,  0),
-    ("J7",  "Serial (2x5)",     "libfp", "Connector_PinHeader_2.54mm:PinHeader_2x05_P2.54mm_Vertical", 0, 16, 40, 0),
+    ("U14", "MAX232",           "dip",  16, 0,    95, 105,  0),
+    ("J7",  "Serial (2x5)",     "libfp", "Connector_PinHeader_2.54mm:PinHeader_2x05_P2.54mm_Vertical", 0, 95, 80, 0),
     ("U12", "7805",             "hdr",  3,  2.54, 252, 90,  0),
     ("U13", "DS1813 reset",     "hdr",  3,  1.27, 252, 80,  0),
     ("Y1",  "24 MHz crystal",   "hdr",  2,  4.83, 252, 70,  0),
@@ -357,12 +357,12 @@ COMPONENTS = [
 # Decoupling / charge-pump capacitors (0.1uF), wired to explicit nets because
 # they are not yet in the schematic/netlist.
 CAPS = [
-    # MAX232 charge-pump + bypass caps (U14 at 20,90)
-    ("C1",  "0.1uF", "MAX_C1P",   "MAX_C1M", 30, 76),
-    ("C2",  "0.1uF", "MAX_C2P",   "MAX_C2M", 30, 82),
-    ("C3",  "0.1uF", "MAX_VP",    "GND",     30, 88),
-    ("C4",  "0.1uF", "MAX_VM",    "GND",     30, 94),
-    ("C5",  "0.1uF", "+5V",       "GND",     30, 100),
+    # MAX232 charge-pump + bypass caps (U14 at 95,105)
+    ("C1",  "0.1uF", "MAX_C1P",   "MAX_C1M", 88, 96),
+    ("C2",  "0.1uF", "MAX_C2P",   "MAX_C2M", 88, 100),
+    ("C3",  "0.1uF", "MAX_VP",    "GND",     88, 104),
+    ("C4",  "0.1uF", "MAX_VM",    "GND",     88, 108),
+    ("C5",  "0.1uF", "+5V",       "GND",     88, 112),
     # 0.1uF bypass cap on each DIP (below the DIP-20 row / right of SRAM & flash)
     ("C6",  "0.1uF", "+5V",       "GND",     45, 122),
     ("C7",  "0.1uF", "+5V",       "GND",     72, 122),
@@ -379,10 +379,10 @@ CAPS = [
     ("C18", "0.1uF", "+5V", "GND",     248, 56),
     ("C19", "0.1uF", "+5V", "GND",     248, 34),
     # bypass caps for the four new data/address parts (U2/U3 74HC573, U25/U26 74F245)
-    ("C20", "0.1uF", "+5V", "GND",     162, 68),
-    ("C21", "0.1uF", "+5V", "GND",     174, 68),
-    ("C22", "0.1uF", "+5V", "GND",     186, 68),
-    ("C23", "0.1uF", "+5V", "GND",     198, 68),
+    ("C20", "0.1uF", "+5V", "GND",     160, 68),
+    ("C21", "0.1uF", "+5V", "GND",     170, 68),
+    ("C22", "0.1uF", "+5V", "GND",     190, 68),
+    ("C23", "0.1uF", "+5V", "GND",     190, 30),
 ]
 
 
