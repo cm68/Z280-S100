@@ -50,7 +50,7 @@ flowchart LR
   D -- "AD0-15" --> R
   D -- "AD0-15" --> F
   D -- "DO / DI" --> B
-  D -- "SRAM_WIN · FLASH_WIN · BANK" --> A
+  D -- "SRAM_WIN · FLASH_WIN · A20" --> A
   A -- "address · status · pSYNC/pDBIN/pWR · pHLDA" --> B
   Z -- "WAIT · BUSREQ" --> A
   B -- "HOLD · pRDY · INT · SIXTN" --> A
@@ -259,7 +259,7 @@ Five steering decisions A computes that B can't see, three decode lines B comput
 
 ```
 A ──► B:  SLAVE · MASTER_ACTIVE · MASTER_WRITE · BYTE_SEL · XFR16
-B ──► A:  SRAM_WIN · FLASH_WIN · BANK
+B ──► A:  SRAM_WIN · FLASH_WIN · A20
 ```
 
 ### Pin budgets

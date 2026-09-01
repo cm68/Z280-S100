@@ -35,8 +35,8 @@ DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
 ## Serial console (J7, 2×5 IDC)
 - J7 pin 1 = RS-232 TX (from MAX232 T1OUT), pin 2 = RS-232 RX (to MAX232 R1IN),
   pins 3–10 = GND.  Cable pin 1 → DB9-3, pin 2 → DB9-2, any GND → DB9-5.
-- MAX232 (U14) still needs its five charge-pump caps (C1+/C1-/C2+/C2- + V+/V-
-  bypass, ≈ 0.1 µF each) — not yet placed.
+- MAX232 (U14) charge-pump (C1/C2) + V+/V-/VCC bypass (C3/C4/C5), 0.1 µF each,
+  are placed on the schematic (C1–C5) and the board.
 
 ## Bus timing straps (J10 3x8 header + U21)
 - One 3x8 header (24 pins) sets the value the Z280 samples on AD0-7 at reset to
@@ -55,6 +55,21 @@ DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
   jumperable, so the wait field and clock divider can be changed in place.
 - Reset must be held low >=512 XTAL1 clocks (~21 us at 24 MHz); the DS1813's
   ~100 ms power-on reset easily satisfies this.
+
+## Clock source (crystal Y1 vs DIP oscillator Y2)
+- Two time-base options are laid out, both 24 MHz: a parallel-resonant crystal
+  Y1 (HC49) across XTALI/XTALO, and a DIP-can oscillator Y2 whose OUT drives
+  XTALI. Populate ONE at build time -- they must not both be fitted (they both
+  drive XTALI).
+- The Z280 auto-detects the source (datasheet 9.2): a crystal across XTAL1/XTALO
+  enables the on-chip oscillator, while an external clock into XTAL1 bypasses it
+  (leave XTALO open). There is NO strap bit for this -- the J10 BTI straps set
+  the clock scaling (CS), wait states, multiprocessor and bootstrap fields, not
+  the clock source. In both modes the CPU clock is half the XTAL1 frequency, so
+  either 24 MHz part gives a 12 MHz processor clock.
+- Y2's footprint (z280-s100:Oscillator_DIP-8-14) takes either a full DIP-14 can
+  (GND/OUT on 7/8, VCC on 14) or a half DIP-8 can (GND/OUT on 4/5, VCC on 8).
+  Pads 4/7 and 5/8 are shorted by the netlist, and pad 1 (NC) floats.
 
 ## Data bus (74F245 transceivers, U25/U26)
 - The S-100 DO0-7 / DI0-7 lanes are NOT driven by the CPLD any more. CPLD B's

@@ -52,7 +52,7 @@ PIN 28  = S100_CDSB;  /* control disable, active low */
 PIN 30  = SRAM_WIN;   /* from 74F138 Y0: 2 MB window 000000-1FFFFF */
 PIN 31  = FLASH_WIN;  /* from 74F521: F00000-F0FFFF */
 PIN 29  = SLAVE_WIN;  /* from 74F521: DIP-strapped TMA slave window */
-PIN 33  = BANK;       /* A20, straight off the upper address bus */
+PIN 33  = A20;       /* A20, straight off the upper address bus */
 PIN 27  = LA0;        /* from CPLD 1: byte lane (was the '573 output) */
 PIN 62  = TCK;        /* JTAG */
 PIN 23  = TMS;
@@ -201,10 +201,10 @@ CPLD_pDBIN.OE  = S100_ACTIVE;
 CPLD_pWR.OE    = S100_ACTIVE;
 
 /* *************** LOCAL MEMORY *************** */
-MEM_CE0 = (MEM & SRAM_WIN & MASTER & !BANK)
-        # (SLAVE & SLAVE_WIN & CPLD_sMEMR & !BANK);
-MEM_CE1 = (MEM & SRAM_WIN & MASTER &  BANK)
-        # (SLAVE & SLAVE_WIN & CPLD_sMEMR &  BANK);
+MEM_CE0 = (MEM & SRAM_WIN & MASTER & !A20)
+        # (SLAVE & SLAVE_WIN & CPLD_sMEMR & !A20);
+MEM_CE1 = (MEM & SRAM_WIN & MASTER &  A20)
+        # (SLAVE & SLAVE_WIN & CPLD_sMEMR &  A20);
 
 MEM_OE  = (Z_IE & MASTER & SRAM_WIN)
         # (SLAVE & SLAVE_WIN & CPLD_sMEMR & !CPLD_sWO);

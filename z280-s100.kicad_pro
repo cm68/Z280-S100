@@ -2005,6 +2005,10 @@
       {
         "netclass": "Power",
         "pattern": "+8V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "+5V"
       }
     ]
   },
@@ -2137,7 +2141,7 @@
   },
   "sheets": [
     [
-      "e9e5ac08-f111-488d-926c-f7368693102b",
+      "1ad4262c-2dfe-44e3-becc-b17654850009",
       "Root"
     ]
   ],

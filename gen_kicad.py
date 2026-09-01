@@ -12,8 +12,18 @@ import os, uuid
 OUT = os.path.dirname(os.path.abspath(__file__))
 V = "20250114"  # KiCad 9
 
-def uid():
-    return uuid.uuid4().hex
+_UUID_NS = uuid.uuid5(uuid.NAMESPACE_URL, "z280-s100")
+
+def uid(key):
+    """Return a deterministic UUID (v5, dashed) derived from a stable string key.
+
+    Every object in the schematic gets a UUID hashed from its identity (symbol
+    reference, pin number, net + position) rather than a fresh random one. This
+    keeps the symbol-instance UUIDs stable across regenerations so the board's
+    ``(path "/<symbol-uuid>")`` links survive "Update PCB from Schematic" instead
+    of churning every time the sheet is re-emitted.
+    """
+    return str(uuid.uuid5(_UUID_NS, key))
 
 # Root-sheet UUID: shared between the header (uuid ...) and every symbol's
 # instances-block path, so KiCad can resolve each per-instance reference.
@@ -68,7 +78,7 @@ CPLD_A_IO = [
     ("SRAM_WIN","I"),
     ("FLASH_WIN","I"),
     ("SLAVE_WIN","I"),
-    ("BANK","I"),
+    ("A20","I"),
     ("LA0","I"),
     ("Z_WAIT","O"),
     ("Z_INT","O"),
@@ -130,7 +140,7 @@ _A_PIN = {
     "Z_AS": 77, "Z_DS": 79, "Z_RW": 4, "Z_BW": 5, "Z_ST0": 6, "Z_ST1": 8,
     "Z_ST2": 9, "Z_ST3": 10, "Z_IE": 11, "Z_BUSACK": 15, "Z_CLK_IN": 83, "Z_RESET": 16,
     "S100_INT": 17, "S100_NMI": 18, "S100_HOLD": 20, "S100_pRDY": 21, "S100_XRDY": 22, "S100_ADSB": 12,
-    "S100_SDSB": 25, "S100_CDSB": 28, "SRAM_WIN": 30, "FLASH_WIN": 31, "SLAVE_WIN": 29, "BANK": 33,
+    "S100_SDSB": 25, "S100_CDSB": 28, "SRAM_WIN": 30, "FLASH_WIN": 31, "SLAVE_WIN": 29, "A20": 33,
     "LA0": 27, "Z_WAIT": 34, "Z_INT": 35, "Z_NMI": 36, "Z_BUSREQ": 37, "CPLD_sMEMR": 39,
     "CPLD_sWO": 40, "CPLD_sINP": 41, "CPLD_sOUT": 44, "CPLD_sINTA": 45, "CPLD_sHLTA": 46, "CPLD_sXTRQ": 48,
     "CPLD_pSYNC": 49, "CPLD_pSTVAL": 50, "CPLD_pDBIN": 51, "CPLD_pWR": 52, "CPLD_pHLDA": 54, "MEM_CE0": 55,
@@ -216,15 +226,26 @@ _cpld_b_pins = [(str(_B_PIN[name]), name, elec) for name, elec in CPLD_B_IO]
 _cpld_b_pins += _ATF1508_POWER
 PARTS["ATF1508B"] = ("U", "ATF1508AS (PLCC-84)", "Package_LCC:PLCC-84_THT-Socket", _cpld_b_pins)
 
-PARTS["IS61C5128AS"] = ("U", "IS61C5128AS-25 (512Kx8)", "Package_DIP:DIP-32",
-    [("1","A14","I"),("2","A12","I"),("3","A7","I"),("4","A6","I"),
-     ("5","A5","I"),("6","A4","I"),("7","A3","I"),("8","A2","I"),
-     ("9","A1","I"),("10","A0","I"),("11","DQ0","B"),("12","DQ1","B"),
-     ("13","DQ2","B"),("14","GND","W"),("15","DQ3","B"),("16","DQ4","B"),
-     ("17","DQ5","B"),("18","DQ6","B"),("19","DQ7","B"),("20","CE","I"),
-     ("21","A10","I"),("22","OE","I"),("23","A11","I"),("24","A9","I"),
-     ("25","A8","I"),("26","A13","I"),("27","WE","I"),("28","VCC","W"),
-     ("29","A18","I"),("30","A17","I"),("31","A16","I"),("32","A15","I")])
+# IS61C5128AS-25QLI (4 Mbit, 512Kx8 SRAM), 32-pin JEDEC pinout, matching the
+# stock KiCad symbol Memory_RAM:IS61C5128AS-25QLI.
+#
+# This is NOT the 28-pin JEDEC order with A15-A18 appended -- that was the old
+# (wrong) table here. A 32-pin JEDEC part inserts two pins at the top (A17/A16)
+# and two more mid-package, so GND lands on 16 and VCC on 32, and EVERY data and
+# address pin shifts relative to the 28-pin part. Compare the AT28C256 below:
+# the two pinouts look alike but share almost no pin numbers.
+#
+# Pin 1 is A17 and pin 30 is A18 (not the other way round) -- harmless for a
+# full-density part, but keep it as the datasheet has it.
+PARTS["IS61C5128AS"] = ("U", "IS61C5128AS-25QLI (512Kx8)", "Package_DIP:DIP-32_W15.24mm",
+    [("1","A17","I"),("2","A16","I"),("3","A14","I"),("4","A12","I"),
+     ("5","A7","I"),("6","A6","I"),("7","A5","I"),("8","A4","I"),
+     ("9","A3","I"),("10","A2","I"),("11","A1","I"),("12","A0","I"),
+     ("13","DQ0","B"),("14","DQ1","B"),("15","DQ2","B"),("16","GND","W"),
+     ("17","DQ3","B"),("18","DQ4","B"),("19","DQ5","B"),("20","DQ6","B"),
+     ("21","DQ7","B"),("22","CE","I"),("23","A10","I"),("24","OE","I"),
+     ("25","A11","I"),("26","A9","I"),("27","A8","I"),("28","A13","I"),
+     ("29","WE","I"),("30","A18","I"),("31","A15","I"),("32","VCC","W")])
 
 # AT28C256 (256 Kbit, 32Kx8 EEPROM) in a 28-pin DIP socket, JEDEC pinout.
 # A boot ROM only lives at boot time, so it need not be fast, wide or big --
@@ -246,14 +267,14 @@ PARTS["AT28C256"] = ("U", "AT28C256 (32Kx8)", "Package_DIP:DIP-28_W15.24mm",
 PARTS["JP"] = ("J", "Jumper (2-pin header)", "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
     [("1","A","P"),("2","B","P")])
 
-PARTS["74HC573"] = ("U", "74HC573", "Package_DIP:DIP-20",
+PARTS["74HC573"] = ("U", "74HC573", "Package_DIP:DIP-20_W7.62mm",
     [("1","OE","I"),("2","D0","I"),("3","D1","I"),("4","D2","I"),
      ("5","D3","I"),("6","D4","I"),("7","D5","I"),("8","D6","I"),
      ("9","D7","I"),("10","GND","W"),("11","LE","I"),("12","Q0","T"),
      ("13","Q1","T"),("14","Q2","T"),("15","Q3","T"),("16","Q4","T"),
      ("17","Q5","T"),("18","Q6","T"),("19","Q7","T"),("20","+5V","W")])
 
-PARTS["74HCT245"] = ("U", "74HCT245", "Package_DIP:DIP-20",
+PARTS["74HCT245"] = ("U", "74HCT245", "Package_DIP:DIP-20_W7.62mm",
     [("1","DIR","I"),("2","A0","B"),("3","A1","B"),("4","A2","B"),
      ("5","A3","B"),("6","A4","B"),("7","A5","B"),("8","A6","B"),
      ("9","A7","B"),("10","GND","W"),("11","B0","B"),("12","B1","B"),
@@ -263,7 +284,7 @@ PARTS["74HCT245"] = ("U", "74HCT245", "Package_DIP:DIP-20",
 # Same pinout as 74HCT245, but a bipolar bus transceiver rated for the
 # IEEE-696 data bus: 64 mA sink / 15 mA source. The two S-100 data lanes
 # (DO0-7, DI0-7) use these instead of the CPLD driving the backplane directly.
-PARTS["74F245"] = ("U", "74F245", "Package_DIP:DIP-20",
+PARTS["74F245"] = ("U", "74F245", "Package_DIP:DIP-20_W7.62mm",
     [("1","DIR","I"),("2","A0","B"),("3","A1","B"),("4","A2","B"),
      ("5","A3","B"),("6","A4","B"),("7","A5","B"),("8","A6","B"),
      ("9","A7","B"),("10","GND","W"),("11","B0","B"),("12","B1","B"),
@@ -273,7 +294,7 @@ PARTS["74F245"] = ("U", "74F245", "Package_DIP:DIP-20",
 # Octal 3-state buffer: drives the jumper-selected BTI value onto AD0-7 during
 # the reset-config window (both /OE driven by the control CPLD's CFG_OE, active
 # low) and goes high-Z once the 6-clock hold elapses.
-PARTS["74HCT244"] = ("U", "74HCT244", "Package_DIP:DIP-20",
+PARTS["74HCT244"] = ("U", "74HCT244", "Package_DIP:DIP-20_W7.62mm",
     [("1","OE1","I"),("2","A0","I"),("3","Y7","T"),("4","A1","I"),
      ("5","Y6","T"),("6","A2","I"),("7","Y5","T"),("8","A3","I"),
      ("9","Y4","T"),("10","GND","W"),("11","A4","I"),("12","Y3","T"),
@@ -281,7 +302,7 @@ PARTS["74HCT244"] = ("U", "74HCT244", "Package_DIP:DIP-20",
      ("17","A7","I"),("18","Y0","T"),("19","OE2","I"),("20","+5V","W")])
 
 # 74F138 3-to-8 decoder: A21/A22/A23 -> Y0 = SRAM_WIN (the 2 MB window 000000-1FFFFF).
-PARTS["74F138"] = ("U", "74F138", "Package_DIP:DIP-16",
+PARTS["74F138"] = ("U", "74F138", "Package_DIP:DIP-16_W7.62mm",
     [("1","A0","I"),("2","A1","I"),("3","A2","I"),("4","G2A","I"),("5","G2B","I"),("6","G1","I"),
      ("7","Y7","O"),("8","GND","W"),("9","Y6","O"),("10","Y5","O"),("11","Y4","O"),("12","Y3","O"),
      ("13","Y2","O"),("14","Y1","O"),("15","Y0","O"),("16","+5V","W")])
@@ -289,28 +310,52 @@ PARTS["74F138"] = ("U", "74F138", "Package_DIP:DIP-16",
 # 74F521 8-bit identity comparator (P=Q, /P=Q output). Used for FLASH_WIN and
 # the DIP-strappable SLAVE_WIN; taps the inboard A16-23 net so it sees the TMA's
 # address in slave mode too.
-PARTS["74F521"] = ("U", "74F521", "Package_DIP:DIP-20",
+PARTS["74F521"] = ("U", "74F521", "Package_DIP:DIP-20_W7.62mm",
     [("1","G","I"),("2","P0","I"),("3","Q0","I"),("4","P1","I"),("5","Q1","I"),
      ("6","P2","I"),("7","Q2","I"),("8","P3","I"),("9","Q3","I"),("10","GND","W"),
      ("11","Q4","I"),("12","P4","I"),("13","Q5","I"),("14","P5","I"),("15","Q6","I"),
      ("16","P6","I"),("17","Q7","I"),("18","P7","I"),("19","PEQQ","O"),("20","+5V","W")])
 
 
-PARTS["MAX232"] = ("U", "MAX232", "Package_DIP:DIP-16",
+PARTS["MAX232"] = ("U", "MAX232", "Package_DIP:DIP-16_W7.62mm",
     [("1","C1+","P"),("2","V+","P"),("3","C1-","P"),("4","C2+","P"),
      ("5","C2-","P"),("6","V-","P"),("7","T2OUT","O"),("8","R2IN","I"),
      ("9","R2OUT","O"),("10","T2IN","I"),("11","T1IN","I"),
      ("12","R1OUT","O"),("13","R1IN","I"),("14","T1OUT","O"),
      ("15","GND","W"),("16","+5V","W")])
 
-PARTS["DS1813"] = ("U", "DS1813", "Package_TO_SOT:TO-92",
+# 0.1 uF ceramic disc capacitor (passive 2-pin) — the MAX232 charge-pump
+# (C1/C2) and V+/V-/VCC bypass (C3/C4/C5).
+PARTS["C"] = ("C", "0.1uF", "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P2.50mm",
+    [("1","1","P"),("2","2","P")])
+
+PARTS["DS1813"] = ("U", "DS1813", "Package_TO_SOT_THT:TO-92_Inline",
     [("1","GND","W"),("2","RST","OC"),("3","VCC","W")])
 
-PARTS["LM7805"] = ("U", "LM7805", "Package_TO_SOT:TO-220-3",
+PARTS["LM7805"] = ("U", "LM7805", "Package_TO_SOT_THT:TO-220-3_Horizontal_TabDown",
     [("1","IN","I"),("2","GND","W"),("3","OUT","O")])
+
+# LM323K (3 A, TO-3 steel-can) is the alternative to the LM7805: same IN/OUT/GND
+# pin numbers, but the tab/case is GND. Exactly one of U12/U27 is populated --
+# they hang off the same +8V rail in parallel, so they must never both be fitted.
+PARTS["LM323K"] = ("U", "LM323K", "Package_TO_SOT_THT:TO-3",
+    [("1","IN","I"),("2","OUT","O"),("3","GND","W")])
 
 PARTS["Crystal"] = ("Y", "24 MHz", "Crystal:Crystal_HC49",
     [("1","X1","P"),("2","X2","P")])
+
+# DIP can oscillator, as an alternative to the crystal. The footprint accepts
+# either a full-size DIP-14 can or a half-size DIP-8 can: both share pin 1 (NC)
+# and the VCC hole (DIP-14 pin 14 == DIP-8 pin 8), but GND and OUT land on
+# different columns (DIP-14: 7/8, DIP-8: 4/5), so the footprint carries pads for
+# all six positions. The two GND pins and the two OUT pins are shorted by the
+# netlist, so only one can is stuffed at build time. OUT feeds XTALI directly --
+# the Z280 auto-detects an external clock on XTAL1 (the on-chip crystal
+# oscillator is bypassed and XTALO is left open), so no strap is needed to pick
+# between this and the crystal: you populate one footprint or the other.
+PARTS["Oscillator"] = ("Y", "24 MHz", "z280-s100:Oscillator_DIP-8-14",
+    [("1","NC","P"), ("4","GND","W"), ("5","OUT","O"),
+     ("7","GND","W"), ("8","OUT","O"), ("14","VCC","W")])
 
 PARTS["JTAG"] = ("J", "JTAG header (1x6)", "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical",
     [("1","TCK","B"),("2","TMS","B"),("3","TDI","B"),("4","TDO","B"),
@@ -364,7 +409,7 @@ S100 = [("1","+8V","W"),("2","+16V","W"),("3","XRDY","B"),("4","VI0","P"),
     ("91","DI4","B"),("92","DI5","B"),("93","DI6","B"),("94","DI1","B"),
     ("95","DI0","B"),("96","sINTA","B"),("97","sWO","B"),("98","ERROR","P"),
     ("99","POC","P"),("100","GND","W")]
-PARTS["S100_100"] = ("J", "S-100 edge connector (100-pin)", "Connector_Edge", S100)
+PARTS["S100_100"] = ("J", "S-100 edge connector (100-pin)", "S100_MALE", S100)
 
 # ----------------------------------------------------------------------------
 # Symbol body width (mm). Pin names are drawn *inside* the body, so a part whose
@@ -460,15 +505,16 @@ def emit_symbol_lib():
 def emit_label(net, x, y, kind="global", side=1):
     # Left-side pins get a horizontally-mirrored label: text extends left.
     justify = "right" if side < 0 else "left"
+    key = "label:%s:%s:%.2f:%.2f" % (kind, net, x, y)
     if kind == "global":
         return ('  (global_label "%s" (shape input) (at %.2f %.2f 0)\n'
                 '    (effects (font (size 1.27 1.27)) (justify %s))\n'
                 '    (uuid "%s")\n'
                 '    (property "Intersheetrefs" "${INTERSHEET_REFS}" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))\n  )'
-                % (net, x, y, justify, uid()))
+                % (net, x, y, justify, uid(key)))
     return ('  (label "%s" (at %.2f %.2f 0)\n'
             '    (effects (font (size 1.27 1.27)) (justify %s))\n'
-            '    (uuid "%s")\n  )' % (net, x, y, justify, uid()))
+            '    (uuid "%s")\n  )' % (net, x, y, justify, uid(key)))
 
 def emit_symbol_instance(name, ref, sym_x, sym_y, nets):
     _ref, value, fp, pins = PARTS[name]
@@ -477,19 +523,19 @@ def emit_symbol_instance(name, ref, sym_x, sym_y, nets):
     # fields_autoplaced no: these positions are deliberate, don't let KiCad
     # re-flow them back onto the body.
     lines.append('    (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced yes)')
-    lines.append('    (uuid "%s")' % uid())
+    lines.append('    (uuid "%s")' % uid("sym:" + ref))
     lines.append('    (property "Reference" "%s" (at %.2f %.2f 0) (effects (font (size 1.27 1.27))))' % (ref, sym_x, sym_y - TEXT_REF_DY))
     lines.append('    (property "Value" "%s" (at %.2f %.2f 0) (effects (font (size 1.27 1.27))))' % (value, sym_x, sym_y - TEXT_VAL_DY))
     lines.append('    (property "Footprint" "%s" (at %.2f %.2f 0) (effects (font (size 1.27 1.27)) hide))' % (fp, sym_x, sym_y))
     lines.append('    (property "Datasheet" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))')
     for num, nm, e in pins:
-        lines.append('    (pin "%s" (uuid "%s"))' % (num, uid()))
+        lines.append('    (pin "%s" (uuid "%s"))' % (num, uid("pin:%s:%s" % (ref, num))))
     lines.append('    (instances (project "z280-s100" (path "/%s" (reference "%s") (unit 1))))' % (SHEET_UUID, ref))
     lines.append('  )')
     for num, net in nets.items():
         x, y, side = pin_abs(name, num, sym_x, sym_y)
         ex = x + side * 5.08
-        lines.append('  (wire (pts (xy %.2f %.2f) (xy %.2f %.2f)) (stroke (width 0) (type default)) (uuid "%s"))' % (x, y, ex, y, uid()))
+        lines.append('  (wire (pts (xy %.2f %.2f) (xy %.2f %.2f)) (stroke (width 0) (type default)) (uuid "%s"))' % (x, y, ex, y, uid("wire:%s:%s" % (ref, num))))
         lines.append(emit_label(net, ex, y, side=side))
     return '\n'.join(lines)
 
@@ -515,13 +561,17 @@ def emit_sheet_file(title, instances, paper="A1"):
 
 # ----------------------------------------------------------------------------
 def sram_nets(data_nets, we, ce):
-    d = {"1":"A15","2":"A13","3":"A8","4":"A7","5":"A6","6":"A5",
-         "7":"A4","8":"A3","9":"A2","10":"A1","11":data_nets[0],
-         "12":data_nets[1],"13":data_nets[2],"14":"GND","15":data_nets[3],
-         "16":data_nets[4],"17":data_nets[5],"18":data_nets[6],"19":data_nets[7],
-         "20":ce,"21":"A11","22":"MEM_OE","23":"A12","24":"A10",
-         "25":"A9","26":"A14","27":we,"28":"+5V","29":"A19","30":"A18",
-         "31":"A17","32":"A16"}
+    # Byte-wide half of a 16-bit word, so SRAM A_n = board A_{n+1}: SRAM A0-A18
+    # = board A1-A19, and a pair spans a 512K-word (1 MB) window. A0 picks the
+    # byte lane and A20 picks the bank, so neither reaches the chips.
+    # Pin numbers are the 32-pin JEDEC order -- see PARTS["IS61C5128AS"].
+    d = {"1":"A18","2":"A17","3":"A15","4":"A13","5":"A8","6":"A7",
+         "7":"A6","8":"A5","9":"A4","10":"A3","11":"A2","12":"A1",
+         "13":data_nets[0],"14":data_nets[1],"15":data_nets[2],"16":"GND",
+         "17":data_nets[3],"18":data_nets[4],"19":data_nets[5],
+         "20":data_nets[6],"21":data_nets[7],
+         "22":ce,"23":"A11","24":"MEM_OE","25":"A12","26":"A10",
+         "27":"A9","28":"A14","29":we,"30":"A19","31":"A16","32":"+5V"}
     return d
 
 def flash_nets(data_nets):
@@ -583,7 +633,7 @@ def buf_nets(alist, blist, dirn, oen):
 
 def single_sheet():
     global SHEET_UUID
-    SHEET_UUID = str(uuid.uuid4())
+    SHEET_UUID = uid("sheet:root")
     inst = []
     # CPU (address is latched inside the AD CPLD, U5)
     z = {"40":"AD0","42":"AD1","43":"AD2","44":"AD3","54":"AD4","57":"AD5",
@@ -663,17 +713,32 @@ def single_sheet():
     # Power / clock / reset / console
     inst.append(emit_symbol_instance("LM7805", "U12", 294.64, 139.7,
                  {"1":"+8V","2":"GND","3":"+5V"}))
+    # Alternate regulator, in parallel with U12: same +8V in / +5V out / GND.
+    # Fit EITHER the 7805 (U12, TO-220) OR the LM323K (U27, TO-3) -- never both.
+    inst.append(emit_symbol_instance("LM323K", "U27", 294.64, 157.48,
+                 {"1":"+8V","2":"+5V","3":"GND"}))
     inst.append(emit_symbol_instance("Crystal", "Y1", 294.64, 127.0,
                  {"1":"XTALI","2":"XTALO"}))
-    inst.append(emit_symbol_instance("DS1813", "U13", 294.64, 165.1,
+    # DIP oscillator (Y2), an alternative time base to the crystal Y1. Both drive
+    # XTALI; only one is stuffed at build time. Pins 4/7 (GND) and 5/8 (OUT) are
+    # the DIP-8 / DIP-14 positions and are shorted by the netlist.
+    inst.append(emit_symbol_instance("Oscillator", "Y2", 231.14, 232.41,
+                 {"4":"GND","7":"GND","5":"XTALI","8":"XTALI","14":"+5V"}))
+    inst.append(emit_symbol_instance("DS1813", "U13", 294.64, 173.99,
                  {"1":"GND","2":"Z_RESET","3":"+5V"}))
     inst.append(emit_symbol_instance("MAX232", "U14", 421.64, 177.8,
                  {"1":"MAX_C1P","2":"MAX_VP","3":"MAX_C1M","4":"MAX_C2P",
                   "5":"MAX_C2M","6":"MAX_VM","7":"NC","8":"NC","9":"NC",
                   "10":"NC","11":"Z_TXD","12":"Z_RXD","13":"MAX_RS232_RX",
                   "14":"MAX_RS232_TX","15":"GND","16":"+5V"}))
+    # MAX232 charge-pump (C1/C2) + V+/V-/VCC bypass (C3/C4/C5), 0.1uF each
+    inst.append(emit_symbol_instance("C", "C1", 360.0, 252.0, {"1":"MAX_C1P","2":"MAX_C1M"}))
+    inst.append(emit_symbol_instance("C", "C2", 360.0, 262.0, {"1":"MAX_C2P","2":"MAX_C2M"}))
+    inst.append(emit_symbol_instance("C", "C3", 360.0, 272.0, {"1":"MAX_VP","2":"GND"}))
+    inst.append(emit_symbol_instance("C", "C4", 360.0, 282.0, {"1":"MAX_VM","2":"GND"}))
+    inst.append(emit_symbol_instance("C", "C5", 360.0, 292.0, {"1":"+5V","2":"GND"}))
     # Serial console header: RS-232 TX/RX + grounds, 2x5 IDC for a DB9 pigtail
-    inst.append(emit_symbol_instance("SERIAL", "J7", 421.64, 215.9,
+    inst.append(emit_symbol_instance("SERIAL", "J7", 429.26, 215.9,
                  {"1":"MAX_RS232_TX","2":"MAX_RS232_RX","3":"GND","4":"GND",
                   "5":"GND","6":"GND","7":"GND","8":"GND","9":"GND","10":"GND"}))
     # S-100 drive buffers (74HCT245): address + status + control. DIR comes
@@ -742,7 +807,7 @@ def single_sheet():
 
 def emit_pro():
     return ('(kicad_project (version 1) (generator "gen_kicad") (generator_version "9.0")\n'
-            '  (uuid "%s")\n)\n' % uid())
+            '  (uuid "%s")\n)\n' % uid("project"))
 
 NOTES = """# Schematic notes — verify before PCB
 
@@ -781,8 +846,8 @@ DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
 ## Serial console (J7, 2×5 IDC)
 - J7 pin 1 = RS-232 TX (from MAX232 T1OUT), pin 2 = RS-232 RX (to MAX232 R1IN),
   pins 3–10 = GND.  Cable pin 1 → DB9-3, pin 2 → DB9-2, any GND → DB9-5.
-- MAX232 (U14) still needs its five charge-pump caps (C1+/C1-/C2+/C2- + V+/V-
-  bypass, ≈ 0.1 µF each) — not yet placed.
+- MAX232 (U14) charge-pump (C1/C2) + V+/V-/VCC bypass (C3/C4/C5), 0.1 µF each,
+  are placed on the schematic (C1–C5) and the board.
 
 ## Bus timing straps (J10 3x8 header + U21)
 - One 3x8 header (24 pins) sets the value the Z280 samples on AD0-7 at reset to
@@ -801,6 +866,21 @@ DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
   jumperable, so the wait field and clock divider can be changed in place.
 - Reset must be held low >=512 XTAL1 clocks (~21 us at 24 MHz); the DS1813's
   ~100 ms power-on reset easily satisfies this.
+
+## Clock source (crystal Y1 vs DIP oscillator Y2)
+- Two time-base options are laid out, both 24 MHz: a parallel-resonant crystal
+  Y1 (HC49) across XTALI/XTALO, and a DIP-can oscillator Y2 whose OUT drives
+  XTALI. Populate ONE at build time -- they must not both be fitted (they both
+  drive XTALI).
+- The Z280 auto-detects the source (datasheet 9.2): a crystal across XTAL1/XTALO
+  enables the on-chip oscillator, while an external clock into XTAL1 bypasses it
+  (leave XTALO open). There is NO strap bit for this -- the J10 BTI straps set
+  the clock scaling (CS), wait states, multiprocessor and bootstrap fields, not
+  the clock source. In both modes the CPU clock is half the XTAL1 frequency, so
+  either 24 MHz part gives a 12 MHz processor clock.
+- Y2's footprint (z280-s100:Oscillator_DIP-8-14) takes either a full DIP-14 can
+  (GND/OUT on 7/8, VCC on 14) or a half DIP-8 can (GND/OUT on 4/5, VCC on 8).
+  Pads 4/7 and 5/8 are shorted by the netlist, and pad 1 (NC) floats.
 
 ## Data bus (74F245 transceivers, U25/U26)
 - The S-100 DO0-7 / DI0-7 lanes are NOT driven by the CPLD any more. CPLD B's
