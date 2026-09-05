@@ -130,7 +130,7 @@ def fp_open(name, ref, value, x, y, rot=0):
             '    (at %.4f %.4f %d)\n'
             '    (property "Reference" "%s" (at 0 0 0) (layer "F.SilkS")\n'
             '      (effects (font (size 1 1))))\n'
-            '    (property "Value" "%s" (at 0 0 0) (layer "F.Fab")\n'
+            '    (property "Value" "%s" (at 0 0 0) (layer "F.SilkS")\n'
             '      (effects (font (size 1 1))))'
             % (name, str(uuid.uuid4()), x, y, rot, ref, value))
 
@@ -193,6 +193,8 @@ def library_fp(fpid, ref, value, x, y, rot=0):
                  '(property "Reference" "%s"' % ref, txt, count=1)
     txt = re.sub(r'\(property "Value" "[^"]*"',
                  '(property "Value" "%s"' % value, txt, count=1)
+    txt = re.sub(r'(\(property "Value" "[^"]*"\n\s*\(at [^\n]*\n\s*\(layer )"F\.Fab"',
+                 r'\1"F.SilkS"', txt, count=1)
     txt = re.sub(r'\(fp_text user "\$\{REFERENCE\}"',
                  '(fp_text user "%s"' % ref, txt, count=1)
 
@@ -276,7 +278,7 @@ def edge_connector():
          % (str(uuid.uuid4()), CONN_X, CONN_Y),
          '    (property "Reference" "J8" (at 0 -11.43 0) (layer "F.SilkS")'
          '      (effects (font (size 1.524 1.524))))',
-         '    (property "Value" "S-100 edge" (at 0 -11.43 0) (layer "F.Fab")'
+         '    (property "Value" "S-100 edge" (at 0 -11.43 0) (layer "F.SilkS")'
          '      (effects (font (size 1.524 1.524))))']
     # Finger x positions copied from the Z80 V3 S100_MALE: wide end fingers at
     # 2.667 and 159.258, the 48 inner fingers at 3.175 mm pitch from 6.35.
@@ -310,37 +312,37 @@ def edge_connector():
 # schematic is re-annotated in KiCad these refs must be updated to match.
 COMPONENTS = [
     # PLCC through-hole sockets (origin at top-left, body extends +Y)
-    ("U1",  "Z280 (PLCC-68)",   "libfp", "Package_LCC:PLCC-68_THT-Socket", 0, 76.2, 81.28, 0),
+    ("U1",  "Z280 (ZBUS)",   "libfp", "Package_LCC:PLCC-68_THT-Socket", 0, 76.2, 81.28, 0),
     ("U4",  "ATF1508 control",  "libfp", "Package_LCC:PLCC-84_THT-Socket", 0, 136.144, 76.708, 0),
     ("U5",  "ATF1508 data",     "libfp", "Package_LCC:PLCC-84_THT-Socket", 0, 219.71, 75.946, 0),
     # memory: SRAM (DIP-32) + flash (DIP-28), clustered on the left, ~10 mm gaps
-    ("U6", "SRAM bank0 even", "libfp", "Package_DIP:DIP-32_W15.24mm", 0, 75.7, 27.4692, 0),
-    ("U7", "SRAM bank0 odd", "libfp", "Package_DIP:DIP-32_W15.24mm", 0, 99.7, 27.4692, 0),
-    ("U8", "SRAM bank1 even", "libfp", "Package_DIP:DIP-32_W15.24mm", 0, 123.7, 27.4692, 0),
-    ("U9", "SRAM bank1 odd", "libfp", "Package_DIP:DIP-32_W15.24mm", 0, 147.7, 27.4692, 0),
+    ("U6", "SRAM0 even", "libfp", "Package_DIP:DIP-32_W15.24mm", 0, 75.7, 27.4692, 0),
+    ("U7", "SRAM0 odd", "libfp", "Package_DIP:DIP-32_W15.24mm", 0, 99.7, 27.4692, 0),
+    ("U8", "SRAM1 even", "libfp", "Package_DIP:DIP-32_W15.24mm", 0, 123.7, 27.4692, 0),
+    ("U9", "SRAM1 odd", "libfp", "Package_DIP:DIP-32_W15.24mm", 0, 147.7, 27.4692, 0),
     ("U10", "28C256 even", "libfp", "Package_DIP:DIP-28_W15.24mm", 0, 171.7, 32.5492, 0),
     ("U11", "28C256 odd", "libfp", "Package_DIP:DIP-28_W15.24mm", 0, 195.7, 32.5492, 0),
     # bus drivers (one row near the top)
-    ("U15", "74HCT245 addr0", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 142.386, 116.332, 0),
-    ("U16", "74HCT245 addr1", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 155.622, 116.332, 0),
-    ("U17", "74HCT245 addr2", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 89.4412, 116.332, 0),
-    ("U18", "74HCT245 status", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 195.331, 116.332, 0),
-    ("U19", "74HCT245 control", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 129.15, 116.332, 0),
-    ("U20", "74HCT245 pHLDA", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 209.936, 115.951, 0),
-    # S-100 data bus transceivers (74F245) + address demux latch (74HC573).
+    ("U15", "74F245", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 142.386, 116.332, 0),
+    ("U16", "74F245", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 155.622, 116.332, 0),
+    ("U17", "74F245", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 89.4412, 116.332, 0),
+    ("U18", "74F245", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 195.331, 116.332, 0),
+    ("U19", "74F245", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 129.15, 116.332, 0),
+    ("U20", "74F245", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 209.936, 115.951, 0),
+    # S-100 data bus transceivers (74F245) + address demux latch (74F573).
     # The 74F245s drive DO0-7 / DI0-7 (the ATF1508 can't meet the IEEE-696
-    # 24 mA bus-drive spec); the 74HC573s latch A3-A15 back out of the data
+    # 24 mA bus-drive spec); the 74F573s latch A3-A15 back out of the data
     # CPLD to make room for the DO_DIR/DI_DIR buffer controls.
-    ("U25", "74F245 DO", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 168.859, 116.332, 0),
-    ("U26", "74F245 DI", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 182.095, 116.332, 0),
-    ("U2", "74HC573 latch", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 50.4763, 42.799, 0),
-    ("U3", "74HC573 latch", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 62.9223, 42.799, 0),
+    ("U25", "74F245", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 168.859, 116.332, 0),
+    ("U26", "74F245", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 182.095, 116.332, 0),
+    ("U2", "74F573", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 50.4763, 42.799, 0),
+    ("U3", "74F573", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 62.9223, 42.799, 0),
     # decode + BTI buffer + config straps (top right)
-    ("U22", "74F138 decode", "libfp", "Package_DIP:DIP-16_W7.62mm", 0, 102.677, 121.412, 0),
-    ("U23", "74F521 flash win", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 76.205, 116.332, 0),
-    ("U24", "74F521 slave win", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 115.914, 116.332, 0),
-    ("U21", "74HCT244 BTI", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 37.2683, 42.799, 0),
-    ("J10", "Config (3x8)",      "hdr3x8", 8, 2.54, 31.496, 65.405, 180),
+    ("U22", "74F138", "libfp", "Package_DIP:DIP-16_W7.62mm", 0, 102.677, 121.412, 0),
+    ("U23", "74F521", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 76.205, 116.332, 0),
+    ("U24", "74F521", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 115.914, 116.332, 0),
+    ("U21", "74HCT244", "libfp", "Package_DIP:DIP-20_W7.62mm", 0, 37.2683, 42.799, 0),
+    ("J10", "Config",      "hdr3x8", 8, 2.54, 31.496, 65.405, 180),
     # console / power / clock / reset
     ("U14", "MAX232", "libfp", "Package_DIP:DIP-16_W7.62mm", 0, 221.112, 42.418, 0),
     # MAX232 charge-pump + bypass caps (netlist-wired)
@@ -352,16 +354,16 @@ COMPONENTS = [
     ("J7",  "Serial (2x5)",     "libfp", "Connector_PinHeader_2.54mm:PinHeader_2x05_P2.54mm_Vertical", 0, 229.362, 30.48, -90),
     ("U12", "7805",             "hdr",  3,  2.54, 22.73, 139.25, 0),
     ("U27", "LM323K",           "libfp", "Package_TO_SOT_THT:TO-3", 0, 53.616, 133.604, 180),
-    ("U13", "DS1813 reset",     "hdr",  3,  1.27, 168.91, 97.663, 0),
+    ("U13", "DS1813",     "hdr",  3,  1.27, 168.91, 97.663, 0),
     ("Y1",  "24 MHz crystal",   "hdr",  2,  4.83, 48.131, 90.043, 0),
     # pull-up resistors
     ("R1",  "1k pRDY",          "hdr",  2,  7.62, 21.463, 81.026, 0),
     ("R2",  "1k XRDY",          "hdr",  2,  7.62, 21.209, 86.36, 0),
     ("R3",  "1k SLAVE_ONLY",    "hdr",  2,  7.62, 242.57, 51.308, 0),
-    ("J11", "SLAVE_ONLY jumper","libfp", "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical", 0, 250.0, 51.308, 0),
+    ("J11", "SLAVE_ONLY","libfp", "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical", 0, 250.0, 51.308, 0),
     ("R4",  "1k SIXTN",         "hdr",  2,  7.62, 21.463, 91.948, 0),
     # JTAG header
-    ("J9",  "JTAG (1x6)",       "hdr",  6,  2.54, 256.286, 94.996, -90),
+    ("J9",  "JTAG",       "hdr",  6,  2.54, 256.286, 94.996, -90),
 ]
 
 # Decoupling / charge-pump capacitors (0.1uF), wired to explicit nets because
@@ -382,7 +384,7 @@ CAPS = [
     ("C17", "0.1uF", "+5V",       "GND", 162.814, 108.966),
     ("C18", "0.1uF", "+5V", "GND", 192.151, 93.218),
     ("C19", "0.1uF", "+5V", "GND", 55.245, 96.139),
-    # bypass caps for the four new data/address parts (U2/U3 74HC573, U25/U26 74F245)
+    # bypass caps for the four new data/address parts (U2/U3 74F573, U25/U26 74F245)
     ("C20", "0.1uF", "+5V", "GND", 68.961, 116.332),
     ("C21", "0.1uF", "+5V", "GND", 106.934, 114.173),
     ("C22", "0.1uF", "+5V", "GND", 176.911, 108.585),

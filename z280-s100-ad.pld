@@ -33,7 +33,8 @@ Device   f1508ispplcc84 ;
  *
  * Pinout: ATF1508AS 84-pin PLCC. JTAG = TDI 14 / TMS 23 / TCK 62 / TDO 71.
  * DEDICATED inputs: GCLR=1, OE2=2, GCLK1=83, OE1=84 (tied +5V in the schematic
- * except GCLK1=83 = Z_CLK_IN). ~50 general I/O used after the re-partition.
+ * except GCLK1=83 = Z_CLK_IN). 53 general I/O used; FREE for a future rev:
+ * 65, 67, 68, 69, 70, 73, 74.
  * ========================================================================== */
 
 /* *************** INPUTS *********************/

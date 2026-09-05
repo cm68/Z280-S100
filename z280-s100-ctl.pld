@@ -25,7 +25,8 @@ Device   f1508ispplcc84 ;
  *
  * Pinout: ATF1508AS 84-pin PLCC. JTAG = TDI 14 / TMS 23 / TCK 62 / TDO 71.
  * DEDICATED inputs: GCLR=1, OE2=2, GCLK1=83, OE1=84 (tied +5V in the schematic
- * except GCLK1=83 = Z_CLK_IN). 60 general I/O + pin 83 all used (61 signals).
+ * except GCLK1=83 = Z_CLK_IN). 57 general I/O used; FREE for a future rev:
+ * 75, 76, 77 (+ Z_AS pin 12 spare).
  * ========================================================================== */
 
 /* *************** INPUT PINS *********************/
@@ -36,6 +37,10 @@ PIN 8   = !MEM_CE1;   /* SRAM bank1 chip enable (odd) */
 PIN 9   = A20;   /* A20 straight off the upper address bus */
 PIN 10  = !MEM_CE0;   /* SRAM bank0 chip enable (even) */
 PIN 11  = !CFG_OE;   /* BTI 74HCT244 /OE - drive AD0-7 during reset + hold */
+/* PIN 12 = Z_AS is an UNUSED spare: LATCH_LE (= !Z_AS) moved to the data CPLD
+ * (ad.pld pin 8) in the re-site, so the control CPLD no longer consumes the
+ * address strobe. The ProChip fitter drops the dead input and pin 12 stays
+ * high-Z in the JEDEC. Kept (rather than deleted) as a spare input. */
 PIN 12  = Z_AS;   /* Z-BUS address strobe, active low */
 PIN 15  = Z_DS;   /* Z-BUS data strobe, active low */
 PIN 16  = Z_RW;   /* read/write, low = write */
