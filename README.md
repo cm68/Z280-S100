@@ -34,9 +34,8 @@ two 74F573s, and the 16-bit data bus runs through two 74F245 transceivers.
 
 | Range | Size | Decode | Device |
 |---|---|---|---|
-| `000000`–`1FFFFF` | 2 MB | 74F138, A23:A22:A21 = 000 | SRAM |
+| `000000`–`1FFFFF` | 2 MB | 74F138 (`SRAM_WIN`) / 74F521 (`SLAVE_WIN`) | SRAM — board + temporary-master access |
 | `F00000`–`F0FFFF` | 64 KB | 74F521, A23:A16 = `F0` | Boot EEPROM |
-| DIP-strapped | 2 MB | 74F521 (`SLAVE_WIN`) | Local SRAM as seen by a temporary master |
 
 The boot EEPROM pair is word-addressed (flash A_n = byte A_{n+1}), so the two
 parts span 64 KB. They are *not* socket-interchangeable with 27C256s (pin 27 is
@@ -54,8 +53,8 @@ directly — DMA-style, without the Z280:
    reverse direction, the data 74F245s float (`S100_DODSB`), and the 74F573
    address latches float their outputs.
 3. The TMA reaches this card's RAM through the **slave window** — a
-   DIP-strapped 74F521 comparator (`SLAVE_WIN`) that maps a 2 MB window of the
-   TMA's address space onto the local SRAM.
+   74F521 comparator (`SLAVE_WIN`, hardwired to `000000`–`1FFFFF`) that maps
+   the TMA's address space onto the local SRAM.
 
 The **SLAVE_ONLY** strap (J11) forces this state permanently, turning the card
 into a plain memory-only card for bring-up and debug.
@@ -103,10 +102,11 @@ multiprocessor, **3 wait states**, bus clock = CPU clock.
 2-pin header. **Open (default)** = normal bus master. **Jumper to +5V** =
 permanent slave (memory-only card). R3 (1 kΩ) holds the line low when open.
 
-### SLAVE_WIN — temporary-master window (DIP strap)
+### SLAVE_WIN — temporary-master window
 
-A 74F521 comparator, DIP-switch strapped, selects the 2 MB window where a
-temporary master sees this card's SRAM.
+A 74F521 comparator hardwired to `000000`–`1FFFFF` (the same 2 MB window as
+SRAM) selects where a temporary master sees this card's SRAM. Not user-
+configurable on this rev.
 
 ### FLASH_WE — boot-ROM write protection
 

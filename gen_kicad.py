@@ -2,10 +2,8 @@
 """Generate a KiCad 9 hierarchical schematic for the Z280 -> S-100 CPU card.
 
 Signal-level connectivity follows extra/docs/z280-s100-cpu-card.md. Pin numbers
-are correct for the standard parts and the S-100 connector (taken from the
-s100z80 reference design in extra/hardware/s100z80); Z280 and ATF1508 pin
-numbers are placeholders that must be checked against their datasheets (see the
-NOTES.md this script writes).
+are verified against the datasheets for the standard parts, the Z280, the
+ATF1508 and the S-100 connector (see the NOTES.md this script writes).
 """
 import os, uuid
 
@@ -407,9 +405,10 @@ PARTS["74F138"] = ("U", "74F138", "Package_DIP:DIP-16_W7.62mm",
      ("7","Y7","O"),("8","GND","W"),("9","Y6","O"),("10","Y5","O"),("11","Y4","O"),("12","Y3","O"),
      ("13","Y2","O"),("14","Y1","O"),("15","Y0","O"),("16","+5V","W")])
 
-# 74F521 8-bit identity comparator (P=Q, /P=Q output). Used for FLASH_WIN and
-# the DIP-strappable SLAVE_WIN; taps the inboard A16-23 net so it sees the TMA's
-# address in slave mode too.
+# 74F521 8-bit identity comparator (P=Q, /P=Q output). Used for FLASH_WIN
+# (hardwired 0xF0) and SLAVE_WIN (hardwired 0x000000-0x1FFFFF, the same 2 MB
+# window as SRAM_WIN); taps the inboard A16-23 net so it sees the TMA's address
+# in slave mode too.
 PARTS["74F521"] = ("U", "74F521", "Package_DIP:DIP-20_W7.62mm",
     [("1","G","I"),("2","P0","I"),("3","Q0","I"),("4","P1","I"),("5","Q1","I"),
      ("6","P2","I"),("7","Q2","I"),("8","P3","I"),("9","Q3","I"),("10","GND","W"),
@@ -769,7 +768,7 @@ def single_sheet():
                   "12":"A11","13":"A12","14":"A13","15":"A14","16":"A15",
                   "20":"+5V"}))
     # Address decode (external, on the inboard A16-23 net so slave mode works):
-    # 74F138 A21-23 -> SRAM_WIN; 74F521 (0xF0) -> FLASH_WIN; 74F521 (2MB strap) -> SLAVE_WIN.
+    # 74F138 A21-23 -> SRAM_WIN; 74F521 (0xF0) -> FLASH_WIN; 74F521 (hardwired 2MB) -> SLAVE_WIN.
     inst.append(emit_symbol_instance("74F138", "U22", 360.0, 60.0,
                  {"1":"A21","2":"A22","3":"A23","4":"GND","5":"GND","6":"+5V",
                   "15":"SRAM_WIN","8":"GND","16":"+5V"}))
@@ -889,7 +888,7 @@ def single_sheet():
     # The Z280 latches AD0-7 on the rising edge of RESET (p.545) and needs WAIT
     # held for 6 clocks past that edge (p.541). The control CPLD holds both WAIT
     # and this 244's /OE through a 6-clock counter, so AD0-7 stays driven for the
-    # whole sample window. Jumpers J10-J17 select the value.
+    # whole sample window. Jumper J10 selects the value.
     inst.append(emit_symbol_instance("74HCT244", "U21", 88.0, 186.0,
         {"1":"CFG_OE","19":"CFG_OE",
          "2":"BTI_AD0","18":"AD0",
@@ -910,18 +909,18 @@ def emit_pro():
     return ('(kicad_project (version 1) (generator "gen_kicad") (generator_version "9.0")\n'
             '  (uuid "%s")\n)\n' % uid("project"))
 
-NOTES = """# Schematic notes — verify before PCB
+NOTES = """# Design notes
 
-Signal connectivity follows `extra/docs/z280-s100-cpu-card.md`. These items need
-verification against datasheets before this schematic is PCB-ready.
+Signal connectivity follows `extra/docs/z280-s100-cpu-card.md`. This board is
+routed and fabricated; the notes below are the as-built reference.
 
-## Pin numbers to verify
+## Pin numbers
 - **Z280 (U1)**: 68-pin PLCC pinout verified — Z80 Family Data Book Fig. 2b
   (Z-BUS, OPT=1), transcribed from `extra/docs/z280-pins.tif`. Power = 2× VCC
   (18/19) + 4× GND (1/35/51/53); shared pins GREQ=CTIO0 (30), GACK=CTIN0 (32),
   EOP-A=INT-A (37), EOP-B=INT-B (36).
 - **ATF1508 (U4/U5)**: pin numbers are now verified against the PLCC-84 pinout
-  and match `z280-s100-control.pld` / `z280-s100-data.pld` — JTAG TDI/TMS/TCK/TDO
+  and match `z280-s100-ctl.pld` / `z280-s100-ad.pld` — JTAG TDI/TMS/TCK/TDO
   at 14/23/62/71 (dedicated), VCCINT 3/43 + VCCIO 13/26/38/53/66/78, GND
   7/19/32/42/47/59/72/82. The four DEDICATED INPUT pins are GCLR = 1 (global
   clear, active low), OE2 = 2, GCLK1 = 83, OE1 = 84 — GCLR/OE1/OE2 are tied to
@@ -1012,11 +1011,8 @@ DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
   74ACT245 are drop-in pin-compatible substitutes at build time if the F parts
   draw too much +5V (ACT still sinks the 24 mA the spec needs, at CMOS quiescent).
 
-## Wiring gaps (currently labeled but not fully connected)
-- Interrupts: S100_INT / S100_NMI route through the CPLD to Z_INT / Z_NMI.
-- Reset OR: DS1813 reset and S100_RESET must be OR'd before Z_RESET (diode-OR or
-  CPLD input).
-- Power flags / ERC cleanup and decoupling caps not yet placed.
+## Known issues
+See [BUGS.md](BUGS.md).
 """
 
 def main():

@@ -1,15 +1,15 @@
-# Schematic notes — verify before PCB
+# Design notes
 
-Signal connectivity follows `extra/docs/z280-s100-cpu-card.md`. These items need
-verification against datasheets before this schematic is PCB-ready.
+Signal connectivity follows `extra/docs/z280-s100-cpu-card.md`. This board is
+routed and fabricated; the notes below are the as-built reference.
 
-## Pin numbers to verify
+## Pin numbers
 - **Z280 (U1)**: 68-pin PLCC pinout verified — Z80 Family Data Book Fig. 2b
   (Z-BUS, OPT=1), transcribed from `extra/docs/z280-pins.tif`. Power = 2× VCC
   (18/19) + 4× GND (1/35/51/53); shared pins GREQ=CTIO0 (30), GACK=CTIN0 (32),
   EOP-A=INT-A (37), EOP-B=INT-B (36).
 - **ATF1508 (U4/U5)**: pin numbers are now verified against the PLCC-84 pinout
-  and match `z280-s100-control.pld` / `z280-s100-data.pld` — JTAG TDI/TMS/TCK/TDO
+  and match `z280-s100-ctl.pld` / `z280-s100-ad.pld` — JTAG TDI/TMS/TCK/TDO
   at 14/23/62/71 (dedicated), VCCINT 3/43 + VCCIO 13/26/38/53/66/78, GND
   7/19/32/42/47/59/72/82. The four DEDICATED INPUT pins are GCLR = 1 (global
   clear, active low), OE2 = 2, GCLK1 = 83, OE1 = 84 — GCLR/OE1/OE2 are tied to
@@ -100,8 +100,5 @@ DI0=95/DI1=94/DI2=41/DI3=42/DI4=91/DI5=92/DI6=93/DI7=43.
   74ACT245 are drop-in pin-compatible substitutes at build time if the F parts
   draw too much +5V (ACT still sinks the 24 mA the spec needs, at CMOS quiescent).
 
-## Wiring gaps (currently labeled but not fully connected)
-- Interrupts: S100_INT / S100_NMI route through the CPLD to Z_INT / Z_NMI.
-- Reset OR: DS1813 reset and S100_RESET must be OR'd before Z_RESET (diode-OR or
-  CPLD input).
-- Power flags / ERC cleanup and decoupling caps not yet placed.
+## Known issues
+See [BUGS.md](BUGS.md).
