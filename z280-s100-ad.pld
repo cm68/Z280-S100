@@ -37,72 +37,64 @@ Device   f1508ispplcc84 ;
  * ========================================================================== */
 
 /* *************** INPUTS *********************/
-PIN 83  = Z_CLK_IN;    /* GCLK1 - bus clock, drives the burst counter */
-PIN 4   = Z_AS;        /* Z-BUS address strobe, active low */
-PIN 5   = Z_DS;        /* Z-BUS data strobe, active low - burst increment */
-PIN 8   = S100_DODSB;  /* data-out disable - gates DO/DI drive */
-PIN 9   = MST_RD;      /* from 2: master S-100 read  (drive AD from bus) */
-PIN 10  = MST_WR;      /* from 2: master S-100 write (drive DO/DI from AD) */
-PIN 11  = SLV_RD;      /* from 2: TMA reads our SRAM (drive DO/DI) */
-PIN 12  = SLV_WR;      /* from 2: TMA writes our SRAM (drive AD) */
-PIN 15  = XFR16;       /* from 2: 16-bit transfer agreed */
-PIN 16  = SPLIT;       /* from 2: second byte of a 16->8 split in progress */
-PIN 17  = SLAVE;       /* from 2: board is a bus slave - float A0-15 */
-PIN 62  = TCK;         /* JTAG */
-PIN 23  = TMS;
-PIN 14  = TDI;
-
-/* *************** OUTPUTS *********************/
-PIN 18  = LA0;         /* to 2: byte lane. Master = latched AD0 (+SPLIT),
-                         * slave = the TMA's A0 read back off the A0 pin. */
-PIN 6   = LATCH_LE;    /* 74HC573 latch enable = !Z_AS (transparent while AS
-                         * is low, holds on the rising edge) */
-PIN 24  = DO_DIR;      /* 74F245 DO DIR: 1 = drive DO (CPLD -> bus) */
-PIN 25  = DI_DIR;      /* 74F245 DI DIR: 1 = drive DI (CPLD -> bus) */
-
-/* *************** LATCHED ADDRESS (low 3 bits) *********************/
-/* A0 = byte lane, A1/A2 = burst counter. A3-A15 are the plain address bits,
- * now latched externally by two 74HC573s (see LATCH_LE). A0 is bidirectional
- * (read as slave for the byte lane); A1/A2 are the burst counter. */
-PIN 20  = A0;
-PIN 21  = A1;
-PIN 22  = A2;
-
-/* *************** DATA BIDIR PINS *********************/
-/* CPLD_DO/CPLD_DI feed the 74F245 A-sides; the 245 B-sides are S100_DO/DI. */
-PIN 40  = AD0;
-PIN 41  = AD1;
-PIN 44  = AD2;
-PIN 45  = AD3;
-PIN 46  = AD4;
-PIN 48  = AD5;
-PIN 49  = AD6;
-PIN 50  = AD7;
-PIN 51  = AD8;
-PIN 52  = AD9;
-PIN 54  = AD10;
-PIN 55  = AD11;
-PIN 56  = AD12;
-PIN 57  = AD13;
-PIN 58  = AD14;
-PIN 60  = AD15;
-PIN 61  = CPLD_DO0;
-PIN 63  = CPLD_DO1;
-PIN 64  = CPLD_DO2;
-PIN 65  = CPLD_DO3;
-PIN 67  = CPLD_DO4;
-PIN 68  = CPLD_DO5;
-PIN 69  = CPLD_DO6;
-PIN 70  = CPLD_DO7;
-PIN 73  = CPLD_DI0;
-PIN 74  = CPLD_DI1;
-PIN 75  = CPLD_DI2;
-PIN 76  = CPLD_DI3;
-PIN 77  = CPLD_DI4;
-PIN 79  = CPLD_DI5;
-PIN 80  = CPLD_DI6;
-PIN 81  = CPLD_DI7;
-PIN 71  = TDO;          /* JTAG */
+PIN 4   = A0;   /* byte lane */
+PIN 5   = A1;   /* burst counter */
+PIN 6   = A2;   /* burst counter */
+PIN 8   = LATCH_LE;   /* 74HC573 latch enable = !Z_AS */
+PIN 9   = AD7;
+PIN 10  = AD8;
+PIN 11  = AD9;
+PIN 12  = MST_RD;   /* from 2: master S-100 read (drive AD from bus) */
+PIN 15  = MST_WR;   /* from 2: master S-100 write (drive DO/DI from AD) */
+PIN 16  = SLV_RD;   /* from 2: TMA reads our SRAM (drive DO/DI) */
+PIN 17  = SLV_WR;   /* from 2: TMA writes our SRAM (drive AD) */
+PIN 18  = XFR16;   /* from 2: 16-bit transfer agreed */
+PIN 20  = SPLIT;   /* from 2: second byte of a 16->8 split */
+PIN 21  = SLAVE;   /* from 2: board is a bus slave - float A0-15 */
+PIN 22  = LA0;   /* to 2: byte lane */
+PIN 24  = AD0;
+PIN 25  = AD1;
+PIN 27  = AD2;
+PIN 28  = AD3;
+PIN 29  = AD4;
+PIN 30  = AD5;
+PIN 31  = AD6;
+PIN 33  = CPLD_DO0;
+PIN 34  = CPLD_DO1;
+PIN 35  = CPLD_DO2;
+PIN 36  = CPLD_DO3;
+PIN 37  = CPLD_DO4;
+PIN 39  = CPLD_DO5;
+PIN 40  = CPLD_DO6;
+PIN 41  = CPLD_DO7;
+PIN 44  = CPLD_DI0;
+PIN 45  = CPLD_DI1;
+PIN 46  = CPLD_DI2;
+PIN 48  = CPLD_DI3;
+PIN 49  = CPLD_DI4;
+PIN 50  = CPLD_DI5;
+PIN 51  = CPLD_DI6;
+PIN 52  = CPLD_DI7;
+PIN 54  = Z_AS;   /* Z-BUS address strobe, active low */
+PIN 55  = Z_DS;   /* Z-BUS data strobe, active low - burst increment */
+PIN 56  = !Z_INT;   /* to Z280 INT-A (active low) */
+PIN 57  = !Z_NMI;   /* to Z280 NMI (active low) */
+PIN 58  = DO_DIR;   /* 74F245 DO DIR: 1 = drive DO */
+PIN 60  = DI_DIR;   /* 74F245 DI DIR: 1 = drive DI */
+PIN 61  = S100_DODSB;   /* data-out disable - gates DO/DI drive */
+PIN 63  = S100_INT;   /* backplane interrupt, active low */
+PIN 64  = S100_NMI;   /* backplane NMI */
+PIN 75  = AD10;
+PIN 76  = AD11;
+PIN 77  = AD12;
+PIN 79  = AD13;
+PIN 80  = AD14;
+PIN 81  = AD15;
+PIN 83  = Z_CLK_IN;   /* GCLK1 - bus clock, drives the burst counter */
+PIN 62  = TCK;   /* JTAG */
+PIN 23  = TMS;   /* JTAG */
+PIN 14  = TDI;   /* JTAG */
+PIN 71  = TDO;   /* JTAG */
 
 /* *************** ADDRESS REGISTER *************** */
 /* Edge-triggered on AS rising: the Z-BUS presents a valid address before AS
@@ -214,3 +206,9 @@ CPLD_DI0.OE = DRIVE_DI;   CPLD_DI1.OE = DRIVE_DI;
 CPLD_DI2.OE = DRIVE_DI;   CPLD_DI3.OE = DRIVE_DI;
 CPLD_DI4.OE = DRIVE_DI;   CPLD_DI5.OE = DRIVE_DI;
 CPLD_DI6.OE = DRIVE_DI;   CPLD_DI7.OE = DRIVE_DI;
+
+/* *************** INTERRUPTS (moved from control CPLD) *************** */
+/* S-100 INT/NMI are active-low and the Z280 wants them active-low, so the
+ * pin (declared !Z_INT/!Z_NMI above) is a net pass-through. */
+Z_INT = !S100_INT;
+Z_NMI = !S100_NMI;

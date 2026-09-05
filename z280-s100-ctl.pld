@@ -29,75 +29,68 @@ Device   f1508ispplcc84 ;
  * ========================================================================== */
 
 /* *************** INPUT PINS *********************/
-PIN 77  = Z_AS;       /* Z-BUS address strobe, active low */
-PIN 79  = Z_DS;       /* Z-BUS data strobe, active low */
-PIN 4   = Z_RW;       /* read/write, low = write */
-PIN 5   = Z_BW;       /* byte/word, low = word */
-PIN 6   = Z_ST0;
-PIN 8   = Z_ST1;
-PIN 9   = Z_ST2;
-PIN 10  = Z_ST3;
-PIN 11  = Z_IE;       /* input enable (read), active low */
-PIN 15  = Z_BUSACK;   /* BUSACK: 0=relinquished(slave) 1=owns(master) */
+PIN 4   = !MEM_WE_H;   /* SRAM high-byte write */
+PIN 5   = !MEM_OE;   /* SRAM output enable */
+PIN 6   = !MEM_WE_L;   /* SRAM low-byte write */
+PIN 8   = !MEM_CE1;   /* SRAM bank1 chip enable (odd) */
+PIN 9   = A20;   /* A20 straight off the upper address bus */
+PIN 10  = !MEM_CE0;   /* SRAM bank0 chip enable (even) */
+PIN 11  = !CFG_OE;   /* BTI 74HCT244 /OE - drive AD0-7 during reset + hold */
+PIN 12  = Z_AS;   /* Z-BUS address strobe, active low */
+PIN 15  = Z_DS;   /* Z-BUS data strobe, active low */
+PIN 16  = Z_RW;   /* read/write, low = write */
+PIN 17  = Z_BW;   /* byte/word, low = word */
+PIN 18  = Z_ST0;
+PIN 20  = Z_ST1;
+PIN 21  = Z_ST2;
+PIN 22  = Z_ST3;
+PIN 24  = Z_IE;   /* input enable (read), active low */
+PIN 25  = Z_BUSACK;   /* BUSACK: 0=relinquished(slave) 1=owns(master) */
+PIN 27  = Z_RESET;   /* reset */
+PIN 28  = !Z_WAIT;   /* hold the Z280, active low */
+PIN 29  = !Z_BUSREQ;   /* request Z280 bus, active low */
+PIN 30  = CPLD_sINTA;
+PIN 31  = CPLD_sHLTA;
+PIN 33  = S100_HOLD;   /* temporary-master request, active low */
+PIN 34  = S100_pRDY;   /* master ready (slave side always ready) */
+PIN 35  = S100_XRDY;   /* ready */
+PIN 36  = S100_ADSB;   /* address disable, active low */
+PIN 37  = S100_SDSB;   /* status disable, active low */
+PIN 39  = S100_CDSB;   /* control disable, active low */
+PIN 40  = S100_SIXTN;   /* read as master, drive low as slave */
+PIN 41  = CPLD_pSYNC;
+PIN 44  = !CPLD_pSTVAL;
+PIN 45  = CPLD_pDBIN;
+PIN 46  = !CPLD_pWR;
+PIN 48  = CPLD_pHLDA;
+PIN 49  = CPLD_sMEMR;
+PIN 50  = !CPLD_sWO;
+PIN 51  = CPLD_sINP;
+PIN 52  = CPLD_sOUT;
+PIN 54  = MST_RD;   /* -> CPLD 1: master S-100 read */
+PIN 55  = MST_WR;   /* -> CPLD 1: master S-100 write */
+PIN 56  = SLV_RD;   /* -> CPLD 1: TMA reads our SRAM */
+PIN 57  = SLV_WR;   /* -> CPLD 1: TMA writes our SRAM */
+PIN 58  = SLAVE;   /* -> CPLD 1: board is a bus slave */
+PIN 60  = XFR16;   /* -> CPLD 1: 16-bit transfer agreed */
+PIN 61  = SPLIT;   /* -> CPLD 1: second byte of a 16->8 split */
+PIN 63  = LA0;   /* from CPLD 1: byte lane */
+PIN 64  = SLAVE_ONLY;   /* strap: permanent bus slave (memory-only debug) */
+PIN 65  = !CPLD_sXTRQ;
+PIN 67  = !S100_A_OE;   /* address 245 enable, active low */
+PIN 68  = !S100_S_OE;   /* status 245 enable, active low */
+PIN 69  = !S100_C_OE;   /* control 245 enable, active low */
+PIN 70  = SRAM_WIN;   /* from 74F138 Y0: 2MB window 000000-1FFFFF */
+PIN 73  = FLASH_WIN;   /* from 74F521: F00000-F0FFFF */
+PIN 74  = SLAVE_WIN;   /* from 74F521: DIP-strapped TMA slave window */
+PIN 79  = !FLASH_OE;   /* flash output enable */
+PIN 80  = !FLASH_WE;   /* 28C256 write enable (in-system EEPROM) */
+PIN 81  = !FLASH_CE;   /* flash chip enable */
 PIN 83  = Z_CLK_IN;   /* GCK1 - bus clock */
-PIN 16  = Z_RESET;
-PIN 17  = S100_INT;   /* backplane interrupt, active low */
-PIN 18  = S100_NMI;
-PIN 20  = S100_HOLD;  /* temporary-master request, active low */
-PIN 21  = S100_pRDY;  /* master ready (read only; slave side always ready) */
-PIN 22  = S100_XRDY;
-PIN 12  = S100_ADSB;  /* address disable, active low */
-PIN 25  = S100_SDSB;  /* status disable, active low */
-PIN 28  = S100_CDSB;  /* control disable, active low */
-PIN 30  = SRAM_WIN;   /* from 74F138 Y0: 2 MB window 000000-1FFFFF */
-PIN 31  = FLASH_WIN;  /* from 74F521: F00000-F0FFFF */
-PIN 29  = SLAVE_WIN;  /* from 74F521: DIP-strapped TMA slave window */
-PIN 33  = A20;       /* A20, straight off the upper address bus */
-PIN 27  = LA0;        /* from CPLD 1: byte lane (was the '573 output) */
-PIN 62  = TCK;        /* JTAG */
-PIN 23  = TMS;
-PIN 14  = TDI;
-
-/* *************** OUTPUT PINS *********************/
-PIN 34  = !Z_WAIT;    /* hold the Z280, active low */
-PIN 35  = !Z_INT;
-PIN 36  = !Z_NMI;
-PIN 37  = !Z_BUSREQ;  /* request Z280 bus, active low */
-PIN 49  = CPLD_pSYNC;
-PIN 50  = !CPLD_pSTVAL;
-PIN 51  = CPLD_pDBIN;
-PIN 52  = !CPLD_pWR;
-PIN 54  = CPLD_pHLDA;
-PIN 55  = !MEM_CE0;
-PIN 56  = !MEM_CE1;
-PIN 57  = !MEM_OE;
-PIN 58  = !MEM_WE_L;
-PIN 60  = !MEM_WE_H;
-PIN 61  = !FLASH_CE;
-PIN 63  = !FLASH_OE;
-PIN 76  = !FLASH_WE;  /* 28C256 write enable - in-system EEPROM programming */
-PIN 75  = !CFG_OE;    /* BTI 74HCT244 /OE - drive AD0-7 during reset + hold */
-PIN 64  = !S100_A_OE; /* address 245 enable, active low */
-PIN 65  = !S100_S_OE; /* status 245 enable, active low */
-PIN 67  = !S100_C_OE; /* control 245 enable, active low */
-PIN 69  = MST_RD;     /* -> CPLD 1: master S-100 read */
-PIN 70  = MST_WR;     /* -> CPLD 1: master S-100 write */
-PIN 80  = SLV_RD;     /* -> CPLD 1: TMA reads our SRAM */
-PIN 81  = SLV_WR;     /* -> CPLD 1: TMA writes our SRAM */
-PIN 74  = XFR16;      /* -> CPLD 1: 16-bit transfer agreed */
-PIN 73  = SPLIT;      /* -> CPLD 1: second byte of a 16->8 split */
-PIN 68  = SLAVE;      /* -> CPLD 1: board is a bus slave */
-PIN 71  = TDO;        /* JTAG */
-
-/* *************** BIDIRECTIONAL PINS *********************/
-PIN 39  = CPLD_sMEMR;
-PIN 40  = !CPLD_sWO;
-PIN 41  = CPLD_sINP;
-PIN 44  = CPLD_sOUT;
-PIN 45  = CPLD_sINTA;
-PIN 46  = CPLD_sHLTA;
-PIN 48  = !CPLD_sXTRQ;
-PIN 24  = S100_SIXTN;  /* read as master, drive low as slave */
+PIN 62  = TCK;   /* JTAG */
+PIN 23  = TMS;   /* JTAG */
+PIN 14  = TDI;   /* JTAG */
+PIN 71  = TDO;   /* JTAG */
 
 /* *************** STATE REGISTER *************** */
 node S1;   /* master FSM: IDLE=00, SYNC=01, DATA=10 */
@@ -137,8 +130,8 @@ LOCAL_ADDR = SRAM_WIN # FLASH_WIN;
 S100_CYCLE = (MEM & !LOCAL_ADDR) # IO;
 READY      = S100_pRDY # S100_XRDY;
 
-SLAVE  = !Z_BUSACK;   /* 1 = board is a bus slave */
-MASTER = Z_BUSACK;    /* 1 = board is the bus master */
+SLAVE  = !Z_BUSACK # SLAVE_ONLY;   /* 1 = board is a bus slave (or forced by strap) */
+MASTER = Z_BUSACK & !SLAVE_ONLY;   /* 1 = board is the bus master */
 
 START      = S100_CYCLE & MASTER;
 S100_ACTIVE = (S1 # S0) & MASTER;
@@ -219,7 +212,7 @@ FLASH_OE = Z_IE & FLASH_WIN & MASTER;
 FLASH_WE = WRITE & Z_DS & FLASH_WIN & MASTER;
 
 /* *************** SLAVE MODE / ARBITRATION *************** */
-Z_BUSREQ = !S100_HOLD;
+Z_BUSREQ = !S100_HOLD & !SLAVE_ONLY;  /* never request the bus in permanent-slave mode */
 
 /* pHLDA is the permanent master's exclusive output; always driven, never
  * CDSB-gated (one master, temporaries return through it). */
@@ -246,6 +239,4 @@ SLV_WR = SLAVE & SLAVE_WIN &  CPLD_sWO;
 
 XFR16  = (MASTER & WORD & S100_SIXTN) # (SLAVE & CPLD_sXTRQ);
 
-/* *************** INTERRUPTS *************** */
-Z_INT = !S100_INT;
-Z_NMI = !S100_NMI;
+/* Interrupts (Z_INT/Z_NMI) moved to CPLD 1 (z280-s100-ad.pld). */
