@@ -16,3 +16,6 @@ z280-s100-placement*
 
 # generated PDF renders
 *.pdf
+
+# fabrication output (regenerable; fab.zip is a zip of fabrication/)
+fab.zip
