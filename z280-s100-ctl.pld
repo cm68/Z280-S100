@@ -1,7 +1,7 @@
 Name     Z280 S-100 CPU card - control CPLD ;
 PartNo   ATF1508 ;
-Date     2026-08-27 ;
-Revision 1 ;
+Date     2026-09-06 ;
+Revision 2 ;
 Designer ;
 Company  ;
 Assembly ;
@@ -13,20 +13,30 @@ Device   f1508ispplcc84 ;
  *
  * Everything that DECIDES a cycle. Touches no data line and no address line.
  *
- * Re-partition changes from rev 0:
- *   - the AD0-15 address latch + burst counter moved to CPLD 1 (z280-s100-ad.pld),
- *     so LATCH_LE / SRAM_A0 / SRAM_A1 / B0 / B1 are gone.
- *   - A16-23 decode moved to external 74F138 (SRAM_WIN) + 74F521 (FLASH_WIN,
- *     SLAVE_WIN). This part just reads the four decode results.
- *   - steering to CPLD 1 is now pre-qualified: MST_RD / MST_WR / SLV_RD / SLV_WR
- *     (+ XFR16, SPLIT, SLAVE), so CPLD 1 has no decode to do.
- *   - LA0 arrives from CPLD 1 (it owns the byte lane).
- *   - S100_DIR moved to CPLD 1 (= !SLAVE); this part keeps the three 245 OEs.
+ * Rev 2 adds the running-slave (temporary-master) role, gated by a single
+ * MODE strap (pin 64, formerly SLAVE_ONLY):
+ *   MODE = 1  ->  permanent master (the original behaviour)
+ *   MODE = 0  ->  temporary master (running slave)
+ *
+ * New signals:
+ *   in : GREQ (75)  - Z280 pin 30, multimicro "I want the shared bus"
+ *   in : MINE (12)  - from the arb GAL, "you won, bus granted"
+ *   out: GACK (76)  - Z280 pin 32, "granted"
+ *   out: IWANT (77) - to the arb GAL, "request the bus"
+ *
+ * Role-dependent handling:
+ *   permanent master: HOLD* in -> BUSREQ -> Z280 parks -> pHLDA out
+ *   temporary master: GREQ -> IWANT -> GAL (HOLD* + DMA0-3) -> MINE -> GACK
+ * In the TMA role the CPLD ignores HOLD/pHLDA (the GAL owns those wires).
+ *
+ * MASTER/SLAVE split into two independent axes:
+ *   Z_OWN  = Z_BUSACK                 (the Z280 owns its bus: gates local RAM)
+ *   S100_MASTER = Z_BUSACK & (PM#MINE) (I'm driving the S-100: gates the FSM)
+ *   SLAVE  = !Z_BUSACK                (parked: a bus master is in my RAM)
  *
  * Pinout: ATF1508AS 84-pin PLCC. JTAG = TDI 14 / TMS 23 / TCK 62 / TDO 71.
- * DEDICATED inputs: GCLR=1, OE2=2, GCLK1=83, OE1=84 (tied +5V in the schematic
- * except GCLK1=83 = Z_CLK_IN). 57 general I/O used; FREE for a future rev:
- * 75, 76, 77 (+ Z_AS pin 12 spare).
+ * DEDICATED inputs: GCLR=1, OE2=2, GCLK1=83, OE1=84 (tied +5V except GCLK1=83
+ * = Z_CLK_IN). 64/64 general I/O used.
  * ========================================================================== */
 
 /* *************** INPUT PINS *********************/
@@ -37,11 +47,7 @@ PIN 8   = !MEM_CE1;   /* SRAM bank1 chip enable (odd) */
 PIN 9   = A20;   /* A20 straight off the upper address bus */
 PIN 10  = !MEM_CE0;   /* SRAM bank0 chip enable (even) */
 PIN 11  = !CFG_OE;   /* BTI 74HCT244 /OE - drive AD0-7 during reset + hold */
-/* PIN 12 = Z_AS is an UNUSED spare: LATCH_LE (= !Z_AS) moved to the data CPLD
- * (ad.pld pin 8) in the re-site, so the control CPLD no longer consumes the
- * address strobe. The ProChip fitter drops the dead input and pin 12 stays
- * high-Z in the JEDEC. Kept (rather than deleted) as a spare input. */
-PIN 12  = Z_AS;   /* Z-BUS address strobe, active low */
+PIN 12  = MINE;   /* from arb GAL: "you won, bus granted" (rev 2) */
 PIN 15  = Z_DS;   /* Z-BUS data strobe, active low */
 PIN 16  = Z_RW;   /* read/write, low = write */
 PIN 17  = Z_BW;   /* byte/word, low = word */
@@ -56,12 +62,10 @@ PIN 28  = !Z_WAIT;   /* hold the Z280, active low */
 PIN 29  = !Z_BUSREQ;   /* request Z280 bus, active low */
 PIN 30  = CPLD_sINTA;
 PIN 31  = CPLD_sHLTA;
-PIN 33  = S100_HOLD;   /* temporary-master request, active low */
+PIN 33  = S100_HOLD;   /* permanent-master role: TMA request, active low */
 PIN 34  = S100_pRDY;   /* master ready (slave side always ready) */
 PIN 35  = S100_XRDY;   /* ready */
-PIN 36  = S100_ADSB;   /* address disable, active low */
-PIN 37  = S100_SDSB;   /* status disable, active low */
-PIN 39  = S100_CDSB;   /* control disable, active low */
+/* ADSB/SDSB/CDSB moved to the data CPLD (rev 2) - see z280-s100-ad.pld. */
 PIN 40  = S100_SIXTN;   /* read as master, drive low as slave */
 PIN 41  = CPLD_pSYNC;
 PIN 44  = !CPLD_pSTVAL;
@@ -76,18 +80,19 @@ PIN 54  = MST_RD;   /* -> CPLD 1: master S-100 read */
 PIN 55  = MST_WR;   /* -> CPLD 1: master S-100 write */
 PIN 56  = SLV_RD;   /* -> CPLD 1: TMA reads our SRAM */
 PIN 57  = SLV_WR;   /* -> CPLD 1: TMA writes our SRAM */
-PIN 58  = SLAVE;   /* -> CPLD 1: board is a bus slave */
+PIN 58  = SLAVE;   /* -> CPLD 1: board is parked (bus master in RAM) */
 PIN 60  = XFR16;   /* -> CPLD 1: 16-bit transfer agreed */
 PIN 61  = SPLIT;   /* -> CPLD 1: second byte of a 16->8 split */
 PIN 63  = LA0;   /* from CPLD 1: byte lane */
-PIN 64  = SLAVE_ONLY;   /* strap: permanent bus slave (memory-only debug) */
+PIN 64  = MODE;   /* strap: 1 = permanent master, 0 = temporary master */
 PIN 65  = !CPLD_sXTRQ;
-PIN 67  = !S100_A_OE;   /* address 245 enable, active low */
-PIN 68  = !S100_S_OE;   /* status 245 enable, active low */
-PIN 69  = !S100_C_OE;   /* control 245 enable, active low */
+/* A_OE/S_OE/C_OE moved to the data CPLD (rev 2) - see z280-s100-ad.pld. */
 PIN 70  = SRAM_WIN;   /* from 74F138 Y0: 2MB window 000000-1FFFFF */
 PIN 73  = FLASH_WIN;   /* from 74F521: F00000-F0FFFF */
 PIN 74  = SLAVE_WIN;   /* from 74F521: DIP-strapped TMA slave window */
+PIN 75  = GREQ;   /* from Z280 pin 30: multimicro grant request (rev 2) */
+PIN 76  = GACK;   /* to Z280 pin 32: grant acknowledge (rev 2) */
+PIN 77  = IWANT;   /* to arb GAL: request the bus (rev 2) */
 PIN 79  = !FLASH_OE;   /* flash output enable */
 PIN 80  = !FLASH_WE;   /* 28C256 write enable (in-system EEPROM) */
 PIN 81  = !FLASH_CE;   /* flash chip enable */
@@ -96,6 +101,12 @@ PIN 62  = TCK;   /* JTAG */
 PIN 23  = TMS;   /* JTAG */
 PIN 14  = TDI;   /* JTAG */
 PIN 71  = TDO;   /* JTAG */
+
+/* *************** INTERRUPTS (rev 2, moved back from data CPLD) *************** */
+PIN 36  = S100_INT;   /* backplane interrupt, active low */
+PIN 37  = S100_NMI;   /* backplane NMI, active low */
+PIN 39  = !Z_INT;   /* to Z280 INT-A (active low) */
+PIN 67  = !Z_NMI;   /* to Z280 NMI (active low) */
 
 /* *************** STATE REGISTER *************** */
 node S1;   /* master FSM: IDLE=00, SYNC=01, DATA=10 */
@@ -135,11 +146,16 @@ LOCAL_ADDR = SRAM_WIN # FLASH_WIN;
 S100_CYCLE = (MEM & !LOCAL_ADDR) # IO;
 READY      = S100_pRDY # S100_XRDY;
 
-SLAVE  = !Z_BUSACK # SLAVE_ONLY;   /* 1 = board is a bus slave (or forced by strap) */
-MASTER = Z_BUSACK & !SLAVE_ONLY;   /* 1 = board is the bus master */
+/* *************** MODE / ROLE (rev 2) *************** */
+PM    = MODE;                     /* 1 = permanent master */
+TMA   = !MODE;                    /* 1 = temporary master (running slave) */
 
-START      = S100_CYCLE & MASTER;
-S100_ACTIVE = (S1 # S0) & MASTER;
+Z_OWN       = Z_BUSACK;                    /* the Z280 owns its bus: local RAM */
+S100_MASTER = Z_BUSACK & (PM # MINE);      /* I'm driving the S-100 bus */
+SLAVE       = !Z_BUSACK;                   /* parked: a bus master is in my RAM */
+
+START       = S100_CYCLE & S100_MASTER;
+S100_ACTIVE = (S1 # S0) & S100_MASTER;
 
 SPLIT16 = WORD & !S100_SIXTN;   /* word access, slave did NOT ack 16-bit */
 
@@ -199,41 +215,53 @@ CPLD_pDBIN.OE  = S100_ACTIVE;
 CPLD_pWR.OE    = S100_ACTIVE;
 
 /* *************** LOCAL MEMORY *************** */
-MEM_CE0 = (MEM & SRAM_WIN & MASTER & !A20)
+MEM_CE0 = (MEM & SRAM_WIN & Z_OWN & !A20)
         # (SLAVE & SLAVE_WIN & CPLD_sMEMR & !A20);
-MEM_CE1 = (MEM & SRAM_WIN & MASTER &  A20)
+MEM_CE1 = (MEM & SRAM_WIN & Z_OWN &  A20)
         # (SLAVE & SLAVE_WIN & CPLD_sMEMR &  A20);
 
-MEM_OE  = (Z_IE & MASTER & SRAM_WIN)
+MEM_OE  = (Z_IE & Z_OWN & SRAM_WIN)
         # (SLAVE & SLAVE_WIN & CPLD_sMEMR & !CPLD_sWO);
 
-MEM_WE_L = (WRITE & Z_DS & (WORD # !LA0) & SRAM_WIN & MASTER)
+MEM_WE_L = (WRITE & Z_DS & (WORD # !LA0) & SRAM_WIN & Z_OWN)
          # (SLAVE & SLAVE_WIN & CPLD_sMEMR & CPLD_sWO & !BYTE_SEL);
-MEM_WE_H = (WRITE & Z_DS & (WORD #  LA0) & SRAM_WIN & MASTER)
+MEM_WE_H = (WRITE & Z_DS & (WORD #  LA0) & SRAM_WIN & Z_OWN)
          # (SLAVE & SLAVE_WIN & CPLD_sMEMR & CPLD_sWO &  BYTE_SEL);
 
-FLASH_CE = MEM & FLASH_WIN & MASTER;
-FLASH_OE = Z_IE & FLASH_WIN & MASTER;
-FLASH_WE = WRITE & Z_DS & FLASH_WIN & MASTER;
+FLASH_CE = MEM & FLASH_WIN & Z_OWN;
+FLASH_OE = Z_IE & FLASH_WIN & Z_OWN;
+FLASH_WE = WRITE & Z_DS & FLASH_WIN & Z_OWN;
 
-/* *************** SLAVE MODE / ARBITRATION *************** */
-Z_BUSREQ = !S100_HOLD & !SLAVE_ONLY;  /* never request the bus in permanent-slave mode */
+/* *************** ARBITRATION (rev 2) *************** */
+/* Outbound, temporary-master role: GREQ -> IWANT -> GAL -> MINE -> GACK. */
+IWANT  = TMA & GREQ;
+GACK   = TMA & MINE;
 
-/* pHLDA is the permanent master's exclusive output; always driven, never
- * CDSB-gated (one master, temporaries return through it). */
-CPLD_pHLDA = !Z_BUSACK;
-CPLD_pHLDA.OE = 'b'1;
+/* Inbound: request the Z280's bus.
+ *   permanent master: a TMA asserts HOLD (as before)
+ *   temporary master: a bus master decodes into my RAM window */
+Z_BUSREQ = (PM & !S100_HOLD)
+         # (TMA & SLAVE_WIN & (CPLD_sMEMR # CPLD_sWO));
+
+/* pHLDA is the permanent master's exclusive output; only driven in that role.
+ * In the TMA role it is tri-stated (the permanent master drives pHLDA and the
+ * GAL reads it). */
+CPLD_pHLDA    = !Z_BUSACK;
+CPLD_pHLDA.OE = PM;
 
 /* SIXTN# (16-bit acknowledge): a master asserts sXTRQ and the slave answers
- * SIXTN. Pin 24 is bidirectional: read as master (SPLIT16), driven open-drain
+ * SIXTN. Pin 40 is bidirectional: read as master (SPLIT16), driven open-drain
  * low as slave when a TMA requests 16-bit inside our window. */
 S100_SIXTN    = 'b'0;
 S100_SIXTN.OE = SLAVE & CPLD_sXTRQ & SLAVE_WIN;
 
-/* *************** BUFFER CONTROL *************** */
-S100_A_OE = S100_ADSB # SLAVE;
-S100_S_OE = S100_SDSB # SLAVE;
-S100_C_OE = S100_CDSB # SLAVE;
+/* BUFFER CONTROL moved to the data CPLD (rev 2) - see z280-s100-ad.pld. */
+
+/* *************** INTERRUPTS (rev 2, moved back from data CPLD) *************** */
+/* S-100 INT/NMI are active-low and the Z280 wants them active-low, so the
+ * pins (declared !Z_INT/!Z_NMI above) are a net pass-through. */
+Z_INT = !S100_INT;
+Z_NMI = !S100_NMI;
 
 /* *************** STEERING DECISIONS (-> CPLD 1) *************** */
 /* Pre-qualified so the data path has no decode left to do. */
@@ -242,6 +270,6 @@ MST_WR = S100_ACTIVE &  WRITE;
 SLV_RD = SLAVE & SLAVE_WIN & !CPLD_sWO;
 SLV_WR = SLAVE & SLAVE_WIN &  CPLD_sWO;
 
-XFR16  = (MASTER & WORD & S100_SIXTN) # (SLAVE & CPLD_sXTRQ);
+XFR16  = (S100_MASTER & WORD & S100_SIXTN) # (SLAVE & CPLD_sXTRQ);
 
 /* Interrupts (Z_INT/Z_NMI) moved to CPLD 1 (z280-s100-ad.pld). */

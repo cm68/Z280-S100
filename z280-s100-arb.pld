@@ -1,0 +1,116 @@
+Name     Z280 S-100 - TMA arbitration ;
+PartNo   ATF22V10 ;
+Date     2026-09-06 ;
+Revision 0 ;
+Designer ;
+Company  ;
+Assembly ;
+Location ;
+Device   g22v10 ;
+
+/* ============================================================================
+ * Z280 S-100 - temporary-master (TMA) arbitration GAL (slave-only option)
+ *
+ * Implements the IEEE-696 (S-100) temporary-master bus arbitration on a
+ * GAL22V10, so the control CPLD (ATF1508, already 61/64 I/O) doesn't have to.
+ * Master boards leave this socket empty; slave boards populate it.
+ *
+ * Interface:
+ *   in : PRIO[3:0]   - 4-bit unique priority (DIP); higher wins, PRIO3 = MSB
+ *   in : IWANT       - from control CPLD: "the Z280 wants the shared bus" (GREQ)
+ *   in : pHLDA       - S-100 hold-acknowledge (26); also the register clock
+ *   in : DMA3*-DMA0* - S-100 priority lines (14/57/56/55), read as inputs
+ *   out : DMA3_DRV..DMA0_DRV - drive the 7406 open-collector inverters that
+ *                      pull the priority lines low
+ *   out : HOLD_DRV   - drive the 7406 that pulls HOLD* (74) low
+ *   out : MINE       - to control CPLD: "you won and the bus is granted" (GACK)
+ *
+ * Why external open-collector drivers: the GAL22V10's output-enable is a SINGLE
+ * product term per macrocell, so the multi-term "assert" cascade cannot be
+ * expressed in .OE. Instead the GAL drives totem-pole "assert" outputs into a
+ * 7406 (hex open-collector inverter); the 7406 sinks the open-collector bus
+ * line (active-low) and the GAL reads the line back as an input for the compare.
+ *
+ * IEEE-696 protocol (spec 2.8): four open-collector lines DMA0*-DMA3*, higher
+ * binary = higher priority, DMA3* = MSB. Each requester drives its priority and
+ * does a bit-wise MSB-first compare: if a line is low but NOT driven by me, a
+ * higher-priority requester is present and I drop my lower bits. The survivor
+ * is granted on the rising edge of pHLDA.
+ *
+ * Pinout (GAL22V10, 24-pin DIP): pin 1 = pHLDA (CLK), 2-10 = inputs,
+ * 14-19 = outputs. Register clock = pin 1 (implicit for .D outputs).
+ * Product terms: DMA_DRV 1/2/4/8, HOLD_DRV 2, MINE.D 16.
+ *
+ * SKETCH - revision 0. Open items at the end.
+ * ========================================================================== */
+
+/* *************** INPUTS *********************/
+PIN 1   = pHLDA;   /* S-100 pHLDA (26): the register clock + a compare term */
+PIN 2   = PRIO3;   /* priority bit 3 (MSB), DIP */
+PIN 3   = PRIO2;
+PIN 4   = PRIO1;
+PIN 5   = PRIO0;   /* priority bit 0 (LSB), DIP */
+PIN 6   = IWANT;   /* from control CPLD: Z280 wants the shared bus */
+PIN 7   = DMA3;    /* S-100 DMA3* (14) read back - active low */
+PIN 8   = DMA2;    /* S-100 DMA2* (57) */
+PIN 9   = DMA1;    /* S-100 DMA1* (56) */
+PIN 10  = DMA0;    /* S-100 DMA0* (55) */
+
+/* *************** OUTPUTS *********************/
+PIN 14  = DMA3_DRV; /* -> 7406 -> DMA3* line (active high: 1 = assert) */
+PIN 15  = DMA2_DRV;
+PIN 16  = DMA1_DRV;
+PIN 17  = DMA0_DRV;
+PIN 18  = HOLD_DRV; /* -> 7406 -> HOLD* line */
+PIN 19  = MINE;     /* -> control CPLD: bus granted to us (registered) */
+
+/* *************** PRIORITY COMPARE *************** */
+/* "Win" term for bit n: I hold a 1 (and pull the line), OR the line is high
+ * (no higher-priority requester is pulling it). If the line is low and I hold
+ * a 0, someone higher is present. */
+WIN3 = PRIO3 # DMA3;
+WIN2 = PRIO2 # DMA2;
+WIN1 = PRIO1 # DMA1;
+WIN0 = PRIO0 # DMA0;
+
+/* I am the highest-priority requester: no bit disagrees. */
+ISME = IWANT & WIN3 & WIN2 & WIN1 & WIN0;
+
+/* *************** PRIORITY DRIVE *************** */
+/* Pull bit n low iff my bit is 1 and no higher bit has lost (MSB-first
+ * cascade). Active-high into the inverting 7406 open-collector buffer. */
+DMA3_DRV = IWANT & PRIO3;
+DMA2_DRV = IWANT & PRIO2 & WIN3;
+DMA1_DRV = IWANT & PRIO1 & WIN3 & WIN2;
+DMA0_DRV = IWANT & PRIO0 & WIN3 & WIN2 & WIN1;
+
+/* *************** GRANT *************** */
+/* MINE latches the arbitration result on pHLDA rising (spec 2.8.3.3.1), and
+ * resets when IWANT is released (transfer done). The arbitration core itself
+ * is asynchronous - the priority lines settle and converge, no clock. */
+MINE.D  = ISME;
+MINE.AR = !IWANT;
+
+/* *************** HOLD REQUEST *************** */
+/* Assert HOLD while we want the bus and it isn't granted, and keep it through
+ * the transfer if we won (spec 2.8.3.2.2: the winner holds HOLD until done).
+ * The MINE register supplies the "winner" term cheaply (1 PT vs 16). */
+HOLD_DRV = IWANT & !pHLDA   /* request during arbitration */
+         # IWANT & MINE;    /* winner holds through the transfer */
+
+/* *************** OUTPUT ENABLES *************** */
+DMA3_DRV.OE = 'b'1;
+DMA2_DRV.OE = 'b'1;
+DMA1_DRV.OE = 'b'1;
+DMA0_DRV.OE = 'b'1;
+HOLD_DRV.OE = 'b'1;
+MINE.OE     = 'b'1;
+
+/* *************** OPEN ITEMS (SKETCH) ***************
+ * 1. Spec 2.8.4.1 "HOLD only when not already asserted" - locks out new
+ *    contenders while HOLD is active. Wants a registered "requesting" state
+ *    (or CPLD-side gating of IWANT) plus a HOLD read-back input; omitted here -
+ *    the priority compare still resolves a late joiner.
+ * 2. MINE.D is exactly 16 product terms on a 16-PT macrocell (pin 19); if the
+ *    fitter needs an extra term, simplify or move it.
+ * 3. Needs one 7406 (hex open-collector inverter): 5 gates for DMA0-3 + HOLD. */

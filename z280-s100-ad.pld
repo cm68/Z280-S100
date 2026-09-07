@@ -78,13 +78,11 @@ PIN 51  = CPLD_DI6;
 PIN 52  = CPLD_DI7;
 PIN 54  = Z_AS;   /* Z-BUS address strobe, active low */
 PIN 55  = Z_DS;   /* Z-BUS data strobe, active low - burst increment */
-PIN 56  = !Z_INT;   /* to Z280 INT-A (active low) */
-PIN 57  = !Z_NMI;   /* to Z280 NMI (active low) */
+/* Interrupts moved back to the control CPLD (rev 2). */
 PIN 58  = DO_DIR;   /* 74F245 DO DIR: 1 = drive DO */
 PIN 60  = DI_DIR;   /* 74F245 DI DIR: 1 = drive DI */
 PIN 61  = S100_DODSB;   /* data-out disable - gates DO/DI drive */
-PIN 63  = S100_INT;   /* backplane interrupt, active low */
-PIN 64  = S100_NMI;   /* backplane NMI */
+/* Interrupts moved back to the control CPLD (rev 2). */
 PIN 75  = AD10;
 PIN 76  = AD11;
 PIN 77  = AD12;
@@ -96,6 +94,21 @@ PIN 62  = TCK;   /* JTAG */
 PIN 23  = TMS;   /* JTAG */
 PIN 14  = TDI;   /* JTAG */
 PIN 71  = TDO;   /* JTAG */
+
+/* *************** REV 2 - S-100 disable lines + buffer control *************** */
+/* Moved from the control CPLD to free its pins. ADSB/SDSB/CDSB are inputs for
+ * now; they become bidir (driven as the TMA) with the XS I/XS II FSM. */
+PIN 65  = S100_ADSB;   /* address disable, active low */
+PIN 67  = S100_SDSB;   /* status disable, active low */
+PIN 68  = S100_CDSB;   /* control disable, active low */
+PIN 69  = !S100_A_OE;   /* address 245 enable, active low */
+PIN 70  = !S100_S_OE;   /* status 245 enable, active low */
+PIN 73  = !S100_C_OE;   /* control 245 enable, active low */
+
+/* *************** REV 2 - TMA arbitration inputs *************** */
+PIN 74  = MODE;   /* strap: 1 = permanent master, 0 = temporary master */
+PIN 63  = MINE;   /* from arb GAL: "you won, bus granted" */
+PIN 56  = Z_RESET;   /* reset - for the XS I/XS II FSM */
 
 /* *************** ADDRESS REGISTER *************** */
 /* Edge-triggered on AS rising: the Z-BUS presents a valid address before AS
@@ -138,8 +151,8 @@ A0.OE  = !SLAVE;   A1.OE  = !SLAVE;   A2.OE  = !SLAVE;
 BYTE_SEL = LA0R # SPLIT;
 
 DRIVE_AD = MST_RD # SLV_WR;                              /* bus -> AD */
-DRIVE_DO = (MST_WR # (SLV_RD & XFR16)) & S100_DODSB;     /* AD -> DO (buried) */
-DRIVE_DI = ((MST_WR & XFR16) # SLV_RD) & S100_DODSB;     /* AD -> DI (buried) */
+DRIVE_DO = (MST_WR # (SLV_RD & XFR16)) & (S100_DODSB # (TMA & MINE));  /* AD -> DO */
+DRIVE_DI = ((MST_WR & XFR16) # SLV_RD) & (S100_DODSB # (TMA & MINE));  /* AD -> DI */
 
 /* The 74F245 DIR pins mirror the buried drive enables. A pin output can't
  * feed another pin's .OE product term directly -- that trips the fitter's
@@ -208,8 +221,34 @@ CPLD_DI2.OE = DRIVE_DI;   CPLD_DI3.OE = DRIVE_DI;
 CPLD_DI4.OE = DRIVE_DI;   CPLD_DI5.OE = DRIVE_DI;
 CPLD_DI6.OE = DRIVE_DI;   CPLD_DI7.OE = DRIVE_DI;
 
-/* *************** INTERRUPTS (moved from control CPLD) *************** */
-/* S-100 INT/NMI are active-low and the Z280 wants them active-low, so the
- * pin (declared !Z_INT/!Z_NMI above) is a net pass-through. */
-Z_INT = !S100_INT;
-Z_NMI = !S100_NMI;
+/* *************** TMA ARBITRATION / XS I-XS II (rev 2) *************** */
+/* Mode strap. */
+PM  = MODE;   /* 1 = permanent master, 0 = temporary master */
+TMA = !MODE;
+
+/* XS I / XS II transfer FSM: drives the four disable lines open-collector in
+ * the TMA role, two-step on both edges:
+ *   IDLE=00 -> ENTER=01 (assert ADSB/SDSB/DODSB) -> ACTIVE=10 (assert CDSB)
+ *   -> EXIT=11 (release CDSB) -> IDLE (release the rest). */
+node XS1, XS0;
+XS1.CK = Z_CLK_IN;   XS0.CK = Z_CLK_IN;
+XS1.AR = !Z_RESET;   XS0.AR = !Z_RESET;
+XS1.D = XS1 $ XS0;
+XS0.D = (MINE & !XS1 & !XS0) # (!MINE & XS1 & !XS0);
+
+/* Drive the disable lines (open-collector via tri-state: 'b'0 data, OE=assert).
+ * They stay bidir: read for the 245 OEs below, driven here as the TMA. */
+S100_ADSB  = 'b'0;   S100_ADSB.OE  = XS1 # XS0;
+S100_SDSB  = 'b'0;   S100_SDSB.OE  = XS1 # XS0;
+S100_CDSB  = 'b'0;   S100_CDSB.OE  = XS1 & !XS0;
+S100_DODSB = 'b'0;   S100_DODSB.OE = XS1 # XS0;
+
+/* *************** BUFFER CONTROL (rev 2) *************** */
+/* Address/status/control 245 OEs. Permanent master: gated by the read disable
+ * lines (a TMA floats me). Temporary master: gated by MINE (I drive, and I'm
+ * the one asserting the disables). Parked (SLAVE): receive. */
+S100_A_OE = (PM & S100_ADSB) # (TMA & MINE) # SLAVE;
+S100_S_OE = (PM & S100_SDSB) # (TMA & MINE) # SLAVE;
+S100_C_OE = (PM & S100_CDSB) # (TMA & MINE) # SLAVE;
+
+/* Interrupts moved back to the control CPLD (rev 2). */

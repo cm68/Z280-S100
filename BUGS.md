@@ -18,3 +18,12 @@ CPLD and the Z280 — a diode-OR of the DS1813 reset and `S100_RESET`, or route
   high-order address lines (A16–A23) with jumpers or a DIP switch would let a
   temporary master see the local SRAM at a movable 2 MB window, avoiding
   address conflicts with other cards on the bus.
+
+- make the board be a running slave, much like a compupro spuz, using the
+  using the multi-micro facility with access to the lower 8mb being 
+  arbitrated.  there would then be 2 distinct modes:  s100 master, 
+  and s100 slave. both of which would allow the z280 to run.
+  to make this work, there would need to be a way for the s100 master to
+  get the attention of the slave, to address multiple instances, and to
+  reset the slave.
+  the compupro spuz would be a good model
