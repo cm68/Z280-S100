@@ -1,0 +1,110 @@
+Name     Z280 S-100 - doorbell / mailbox decode ;
+PartNo   ATF22V10 ;
+Date     2026-09-06 ;
+Revision 1 ;
+Designer ;
+Company  ;
+Assembly ;
+Location ;
+Device   g22v10 ;
+
+/* ============================================================================
+ * Z280 S-100 - doorbell / mailbox decode (pure slave logic, no arbitration)
+ *
+ * A bus master rings board k by I/O-writing its 8-port range:
+ *   A7:A3 = 5-bit range base -> 74F521 (external) vs 5 jumpers -> MATCH (act.low)
+ *   A2:A0 = function:
+ *     000 = interrupt      (write -> INT_B)
+ *     001 = reset          (write -> Z_RST)
+ *     010 = master->slave mailbox byte (write -> set MS_full; read -> clear)
+ *     011 = slave->master mailbox byte (write -> set SM_full; read -> clear)
+ *     100 = set W=0        (write -> clear W)
+ *     101 = set W=1        (write -> set W)
+ *     110-111 = spare
+ *
+ * Three status FFs, all "set on write, cleared on any read of the byte, reset
+ * on Z_RESET":
+ *   INT_B   - doorbell interrupt (-> Z280 INT-B, pin 36)
+ *   MS_full - master->slave full  (-> Z280 INT-C, pin 26, AND the status bit 0)
+ *   SM_full - slave->master full  (status bit 1; cleared by the master's sINP)
+ *
+ * The mailbox BYTE itself lives in a separate 8-bit latch (74F574); this part
+ * only holds the flags and drives the interrupts/reset. The Z280 tests the
+ * status by reading MS_full/SM_full (via the local register block) without
+ * clearing them - only the byte read clears.
+ *
+ * Pinout (GAL22V10, 24-pin DIP): pin 1 = Z_CLK (CLK), 2-10 = inputs, 14-20 = I/O.
+ * ========================================================================== */
+
+/* *************** INPUTS *********************/
+PIN 1   = Z_CLK;    /* CLK - bus clock, times the status FFs */
+PIN 2   = MATCH;    /* 74F521 P=Q, active low: 0 = my range */
+PIN 3   = A0;       /* S-100 address bit 0 (function) */
+PIN 4   = A1;       /* S-100 address bit 1 (function) */
+PIN 5   = sOUT;     /* S-100 I/O write (bus master writes my range) */
+PIN 6   = sINP;     /* S-100 I/O read */
+PIN 7   = Z_RESET;  /* reset - initialize the FFs to empty */
+PIN 8   = INT_CLR;  /* Z280 read of the doorbell-clear address */
+PIN 9   = MS_CLR;   /* Z280 read of the master->slave mailbox byte */
+PIN 10  = A2;       /* S-100 address bit 2 (function) - 8-port decode (rev 1) */
+PIN 11  = LOC_W0;   /* local "set W=0" (register block Y3, active low) - rev 1 */
+PIN 13  = LOC_W1;   /* local "set W=1" (register block Y4, active low) - rev 1 */
+
+/* *************** OUTPUTS *********************/
+PIN 14  = INT_B;    /* -> Z280 INT-B: doorbell interrupt (registered) */
+PIN 15  = MS_FULL;  /* -> Z280 INT-C: master->slave full (registered) */
+PIN 16  = SM_FULL;  /* slave->master full (registered, status bit) */
+PIN 17  = Z_RST;    /* doorbell reset trigger -> MAX708 MR */
+PIN 18  = MS_SET;   /* master->slave mailbox write strobe (clocks the MS latch) */
+PIN 19  = SM_SET;   /* slave->master mailbox write strobe (clocks the SM latch) */
+PIN 20  = W;        /* window register: which 2MB half the S-100 sees (rev 1) */
+
+/* *************** RANGE + FUNCTION DECODE *************** */
+MYRANGE = !MATCH;
+INT_PRT = !A2 & !A1 & !A0;  /* 000 = interrupt */
+RST_PRT = !A2 & !A1 &  A0;  /* 001 = reset */
+MS_PRT  = !A2 &  A1 & !A0;  /* 010 = master->slave mailbox */
+SM_PRT  = !A2 &  A1 &  A0;  /* 011 = slave->master mailbox */
+W_PRT0  =  A2 & !A1 & !A0;  /* 100 = set W=0 (rev 1) */
+W_PRT1  =  A2 & !A1 &  A0;  /* 101 = set W=1 (rev 1) */
+
+/* *************** WRITE / READ ACTIONS *************** */
+INT_SET = MYRANGE & sOUT & INT_PRT;
+RST_SET = MYRANGE & sOUT & RST_PRT;
+MS_SET  = MYRANGE & sOUT & MS_PRT;
+SM_SET  = MYRANGE & sOUT & SM_PRT;
+W_SET0  = MYRANGE & sOUT & W_PRT0;
+W_SET1  = MYRANGE & sOUT & W_PRT1;
+
+/* the slave->master full flag is cleared by the master's sINP of port 11 */
+SM_CLR  = MYRANGE & sINP & SM_PRT;
+
+/* *************** STATUS FLIP-FLOPS *************** */
+/* set on write, cleared on any read of the byte, reset on Z_RESET.
+ * INT_CLR/MS_CLR are active-low (from the 74F138 register select: 0 = clear);
+ * SM_CLR is active-high (the master's sINP of port 11). */
+INT_B.D   = INT_SET # (INT_B   & INT_CLR);
+MS_FULL.D = MS_SET  # (MS_FULL & MS_CLR);
+SM_FULL.D = SM_SET  # (SM_FULL & !SM_CLR);
+
+INT_B.AR   = !Z_RESET;
+MS_FULL.AR = !Z_RESET;
+SM_FULL.AR = !Z_RESET;
+
+/* Window register: set/clear from either side. LOC_W0/LOC_W1 are the active-low
+ * register-block selects (Y3 = set W=0, Y4 = set W=1); W_SET0/W_SET1 are the
+ * remote doorbell ports 100/101. Set beats clear if both fire. */
+W.D        = (W_SET1 # !LOC_W1) # (W & !(W_SET0 # !LOC_W0));
+W.AR       = !Z_RESET;   /* W=0 at reset: expose the lower 2 MB */
+
+/* *************** RESET TRIGGER (combinational) *************** */
+Z_RST     = RST_SET;
+
+/* *************** OUTPUT ENABLES *************** */
+INT_B.OE   = 'b'1;
+MS_FULL.OE = 'b'1;
+SM_FULL.OE = 'b'1;
+Z_RST.OE   = 'b'1;
+MS_SET.OE  = 'b'1;
+SM_SET.OE  = 'b'1;
+W.OE       = 'b'1;

@@ -14,15 +14,18 @@ routed and fabricated; the notes below are the as-built reference.
   7/19/32/42/47/59/72/82. The four DEDICATED INPUT pins are GCLR = 1 (global
   clear, active low), OE2 = 2, GCLK1 = 83, OE1 = 84 — GCLR/OE1/OE2 are tied to
   +5V (inactive) on both CPLDs; GCLK1 = 83 carries Z_CLK_IN. Regular signals
-  must NOT sit on pins 1/2/84. Control sits at 59/64 I/O; the data CPLD was at
-  62/64 until the A3–A15 latch moved back out to two 74F573s (freeing pins for
-  the DO_DIR/DI_DIR buffer controls), so it now sits near 50/64. The control
-  CPLD still declares Z_AS (pin 12) as a spare input — unused since LATCH_LE
-  moved to the data CPLD; the fitter drops it and pin 12 stays high-Z.
-- **Unused CPLD I/O (free pins for a board rev 2):** data CPLD U5 has **65, 67,
-  68, 69, 70, 73, 74** free (7). Control CPLD U4 has **75, 76, 77** free (3),
-  plus **pin 12 (Z_AS)** as a spare — declared but unused, so high-Z in the
-  JEDEC; its trace is routed on this rev but can be re-purposed on the next.
+  must NOT sit on pins 1/2/84. Control CPLD sits at 60/64 I/O (rev 3).
+- **Unused CPLD I/O:** control CPLD U4 has **8, 9, 68, 69** free (4). Pins 8/9
+  were freed by moving the SRAM bank select out to a 74F139 (rev 3); 68/69 have
+  been free since the rev-2 pin re-balance.
+
+## Memory (rev 3, 4 MB)
+- 8× IS61C5128AS-25 = 2M×16 = 4 MB, four banks (CE0–CE3, U6–U9 + U36–U39).
+  Bank select A21:A20 is decoded by a 74F139 (U40) gated by RAM_SELECT from the
+  control CPLD — the old A20 input and CE0/CE1 CPLD outputs are gone.
+- SRAM_WIN (74F138 U22) is the 4 MB window 000000–3FFFFF: A22:A23 matched, A21
+  tied low. SLAVE_WIN (74F521 U24) is hardwired to the same 4 MB window:
+  A22:A23 matched, A21 self-matched/ignored.
 - **AT28C256 flash (U10/U11)**: 28-pin DIP, JEDEC 28C256 layout (A14=1, A12=2,
   A7=3 … A0=10, DQ0=11 … DQ7=19, CE#=20, A10=21, OE#=22, A11=23, A9=24, A8=25,
   A13=26, WE#=27, VCC=28, VSS=14). Word-addressed (flash A_n = byte A_{n+1}),

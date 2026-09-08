@@ -14,11 +14,12 @@
 
 ## 1. System topology
 
-- **Up to 8 boards** on one backplane. Each board is a Z280 + 2 MB RAM +
+- **Up to 8 boards** on one backplane. Each board is a Z280 + 4 MB RAM +
   private boot ROM + two ATF1508 CPLDs (control + data path) +, on slave
   boards, one TMA-arbitration GAL (§7).
-- Each board's 2 MB RAM occupies **one of 8 static 2-MB windows**, filling the
-  16 MB (24-bit) S-100 address space exactly when all 8 boards are present.
+- Each board's 4 MB RAM occupies **a 4-MB boundary** — two adjacent 2-MB
+  windows. Four boards' RAM fills the 16 MB (24-bit) S-100 space; see §12 for
+  the board-count implication of the 4 MB part.
 - **One board is strapped permanent master**; the other seven are slaves. The
   master owns the bus and never requests it; every slave is a temporary master
   (TMA) with its own priority.
@@ -45,7 +46,7 @@ Five windows:
 
 | Z280 range | Size | Meaning |
 |---|---|---|
-| `000000–7FFFFF` | 8 MB | **local** — 2 MB RAM + private ROM + local register block, rest spare |
+| `000000–7FFFFF` | 8 MB | **local** — 4 MB RAM + private ROM + local register block, rest spare |
 | `800000–9FFFFF` | 2 MB | **window 0** |
 | `A00000–BFFFFF` | 2 MB | **window 1** |
 | `C00000–DFFFFF` | 2 MB | **window 2** |
@@ -70,7 +71,9 @@ boundary in the full 16 MB. Example: Z280 `8–10 MB` (window 0) with
 ### 2.4 Local register block (in the low 8 MB)
 
 The low 8 MB is local RAM + private ROM + a small register block that a slave
-must be able to **poll cheaply** — as a local memory cycle, never a bus grab:
+must be able to **poll cheaply** — as a local memory cycle, never a bus grab.
+
+> The register block sits at `0x600000` (6 MB), above the 4 MB RAM.
 
 | Entry | Access | Purpose |
 |---|---|---|
@@ -93,7 +96,7 @@ Two initiators, keyed on the arbitration each case needs.
 
 | Case | Target | Path | Arbitration |
 |---|---|---|---|
-| **Z1** | local RAM (2 MB) | direct SRAM `CE`/`OE`/`WE` | **none** — default owner |
+| **Z1** | local RAM (4 MB) | direct SRAM `CE`/`OE`/`WE` | **none** — default owner |
 | **Z2** | local ROM (private) | direct flash `CE`/`OE`/`WE` | **none** — private |
 | **Z3** | S-100 memory (other board / global) | outbound: multimicro → TMA → mapping RAM | **multimicro grant** |
 
@@ -233,7 +236,7 @@ Four independent fields:
 
 | Strap | Width | Sets |
 |---|---|---|
-| board ID | 3 | RAM 2-MB window (which of 8) |
+| board ID | 3 | RAM 4-MB boundary (which of 4) |
 | doorbell range | 6 | I/O range base (§10, 74F521 jumpers) |
 | TMA priority | 4 | GAL `DMA0–3` priority (slave only, unique) |
 | master/slave | 1 | permanent-master role |
@@ -299,19 +302,27 @@ A7 A6 A5 A4 A3 A2  A1 A0
 
 ## 10. Reset
 
-Two S-100 reset sources, plus the doorbell reset port:
+A single **MAX708 (5 V)** supervisor (replacing the DS1813) does all of it: its
+`VCC` monitor is the power-on reset, its **manual-reset input `MR`** is the
+wire-OR of every other source, and its `RESET` output (~200 ms) drives `Z_RESET`.
 
-- **`RESET` (pin 75)** — the master reset, OR'd into `Z_RESET` (the BUGS.md #1
-  rev-2 fix).
+```
+MR*  ←── S100_RESET  (74, open-collector)
+      ←── SLAVE_CLR   (52, open-collector)
+      ←── doorbell Z_RST (CPLD output, active low)
+      (pull-up to +5 V)
+Z_RESET ←── MAX708 RESET*
+```
+
 - **`SLAVE CLR` (pin 52)** — open-collector; **any board can assert it at any
   time**, no arbitration. If anyone drives it active and we are a slave, we
-  reset. It is both an input (slave reset source) and an output (open-collector
-  driver, to clear the slaves when we — as master — reset). This is the
-  "derived slave clear": the master's reset also drives `SLAVE CLR`.
-- **Doorbell reset port** — a write to our reset port resets us directly.
+  reset. It is also driven (open-collector) when we — as master — reset, which
+  is the "derived slave clear".
+- **Doorbell reset** — the decode's `Z_RST` is a plain active-low trigger; the
+  MAX708 stretches it to ~200 ms, so no 555/counter is needed.
 
-Any slave reset — `SLAVE CLR`, the doorbell port, or the bus reset — runs the
-**full ≥512-clock reset sequence**, not a short pulse.
+This fixes BUGS.md #1 (the S-100 `RESET` now resets the board) and the reset
+pulse is ≥512 clocks (~21 µs) by a wide margin.
 
 ---
 
@@ -326,14 +337,15 @@ never cached (data-only, never streamed).
 
 ## 12. Open items
 
-1. **Reset pulse width** — the exact hold time for a doorbell-triggered reset
-   (≥512 clocks / ~21 µs is the floor; the DS1813 gives ~100 ms at power-on).
-2. **Spare doorbell slots** (`10`, `11`) — eventual function (halt? second
+1. **Spare doorbell slots** (`10`, `11`) — eventual function (halt? second
    interrupt? more status?).
-3. **Status-register semantics** — what the slave publishes for a master to read.
-4. **Multimicro scope on I/O** — the practical question (all external I/O goes
-   to S-100 via TMA) is settled; the exact `GREQ` trigger for an I/O cycle vs a
-   shared-memory access is a manual detail to confirm at implementation time.
+2. **Status-register semantics** — what the slave publishes for a master to read.
+3. **4 MB RAM board count.** A 4 MB RAM occupies a 4-MB boundary (two adjacent
+   2-MB windows), so at most **4 boards' RAM** fills the 16 MB S-100 space. The
+   doorbell/TMA-priority infrastructure still allows 8 boards; only the RAM
+   visibility is limited to 4 fully-populated cards. Decide whether that is the
+   intended ceiling or whether a board should expose only a 2 MB subset of its
+   4 MB RAM.
 
 ---
 
@@ -347,6 +359,25 @@ never cached (data-only, never streamed).
 - `GREQ`/`GACK` (Z280 30/32): unconnected → control CPLD.
 - `SLAVE CLR` (52): open-collector bidir — slave reset input, master reset driver.
 - Doorbell: +1× 74F521 (6-bit, jumper-conditioned) per board.
+- Doorbell decode: +1× GAL22V10 (`z280-s100-doorbell.pld`) — 4-port decode, `INT_B`/`MS_FULL`/`SM_FULL` status FFs, `Z_RST` trigger.
+- Mailbox bytes: +2× 74F574 (one per direction) — MS latch clocked by the master's `sOUT`, read locally; SM latch clocked by the Z280, driven onto `DI` on the master's `sINP`.
 - Mapping RAM: +1× 74F670 (4-word × 4-bit register file, 3 bits used) — read `RA[1:0]` = `A22:A21`, `Q` → S-100 `A23:A22:A21`; write via the local register block (`WA[1:0]` + `WD` + `GW`). Kept off-CPLD.
 - Straps: board ID (3), doorbell range (6), TMA priority (4), master/slave (1).
-- `S100_RESET` → OR into `Z_RESET` (BUGS.md #1).
+- Reset: DS1813 → **MAX708 (5 V)**; `MR` = wire-OR of `S100_RESET` + `SLAVE CLR` + doorbell `Z_RST`; `RESET` → `Z_RESET` (fixes BUGS.md #1).
+
+---
+
+## 14. Schematic deltas (rev 3, 4 MB RAM)
+
+- RAM grows to **8× IS61C5128AS-25** (U6–U9 + U36–U39) = 2M×16 = 4 MB, four
+  banks `CE0`–`CE3`.
+- **Bank select moved off the control CPLD** to a **74F139** (U40): `/E` =
+  `RAM_SELECT` (new CPLD output, pin 10), `A1:A0` = `A21:A20` → `CE0`–`CE3`.
+  The old `A20` input and `CE0`/`CE1` outputs are gone; the control CPLD drops
+  from 64 to 60/64 I/O (pins 8, 9, 68, 69 free).
+- `SRAM_WIN` (74F138 U22) widens 2 MB → 4 MB: `A21` tied low, `A22:A23` matched
+  (`Y0` = `000000–3FFFFF`).
+- `SLAVE_WIN` (74F521 U24) widens 2 MB → 4 MB: `A22:A23` matched, `A21`
+  self-matched/ignored (hardwired `000000–3FFFFF`; strapping is a 2-jumper add-on).
+- `ctl.pld` → `Revision 3`, `z280-s100-ctl.jed` re-fit (45 macrocells / 7 FF,
+  60/64 I/O).

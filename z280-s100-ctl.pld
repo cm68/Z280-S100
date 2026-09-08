@@ -1,7 +1,7 @@
 Name     Z280 S-100 CPU card - control CPLD ;
 PartNo   ATF1508 ;
 Date     2026-09-06 ;
-Revision 2 ;
+Revision 3 ;
 Designer ;
 Company  ;
 Assembly ;
@@ -29,6 +29,10 @@ Device   f1508ispplcc84 ;
  *   temporary master: GREQ -> IWANT -> GAL (HOLD* + DMA0-3) -> MINE -> GACK
  * In the TMA role the CPLD ignores HOLD/pHLDA (the GAL owns those wires).
  *
+ * Rev 3 grows RAM to 4 MB: bank select (A20:A21) moves off-chip to a 74F139
+ * gated by a single RAM_SELECT output. The old A20 input and CE0/CE1 outputs
+ * are gone (the 74F139 decodes A21:A20 into CE0-CE3).
+ *
  * MASTER/SLAVE split into two independent axes:
  *   Z_OWN  = Z_BUSACK                 (the Z280 owns its bus: gates local RAM)
  *   S100_MASTER = Z_BUSACK & (PM#MINE) (I'm driving the S-100: gates the FSM)
@@ -36,16 +40,16 @@ Device   f1508ispplcc84 ;
  *
  * Pinout: ATF1508AS 84-pin PLCC. JTAG = TDI 14 / TMS 23 / TCK 62 / TDO 71.
  * DEDICATED inputs: GCLR=1, OE2=2, GCLK1=83, OE1=84 (tied +5V except GCLK1=83
- * = Z_CLK_IN). 64/64 general I/O used.
+ * = Z_CLK_IN). 63/64 general I/O used (pin 69 free).
  * ========================================================================== */
 
 /* *************** INPUT PINS *********************/
 PIN 4   = !MEM_WE_H;   /* SRAM high-byte write */
 PIN 5   = !MEM_OE;   /* SRAM output enable */
 PIN 6   = !MEM_WE_L;   /* SRAM low-byte write */
-PIN 8   = !MEM_CE1;   /* SRAM bank1 chip enable (odd) */
-PIN 9   = A20;   /* A20 straight off the upper address bus */
-PIN 10  = !MEM_CE0;   /* SRAM bank0 chip enable (even) */
+PIN 8   = W;   /* window reg bit (rev 3): which 2MB half the S-100 sees */
+PIN 9   = A21;   /* inboard A21 (rev 3): Z-own bank-select high bit */
+PIN 10  = !RAM_SELECT;   /* to 74F139 /E: SRAM array selected, active low (rev 3) */
 PIN 11  = !CFG_OE;   /* BTI 74HCT244 /OE - drive AD0-7 during reset + hold */
 PIN 12  = MINE;   /* from arb GAL: "you won, bus granted" (rev 2) */
 PIN 15  = Z_DS;   /* Z-BUS data strobe, active low */
@@ -87,9 +91,9 @@ PIN 63  = LA0;   /* from CPLD 1: byte lane */
 PIN 64  = MODE;   /* strap: 1 = permanent master, 0 = temporary master */
 PIN 65  = !CPLD_sXTRQ;
 /* A_OE/S_OE/C_OE moved to the data CPLD (rev 2) - see z280-s100-ad.pld. */
-PIN 70  = SRAM_WIN;   /* from 74F138 Y0: 2MB window 000000-1FFFFF */
-PIN 73  = FLASH_WIN;   /* from 74F521: F00000-F0FFFF */
-PIN 74  = SLAVE_WIN;   /* from 74F521: DIP-strapped TMA slave window */
+PIN 70  = SRAM_WIN;   /* from 74F138 Y0: 4MB window 000000-3FFFFF (rev 3) */
+PIN 73  = FLASH_WIN;   /* from 74F521: 400000-40FFFF (rev 3) */
+PIN 74  = SLAVE_WIN;   /* from 74F521: TMA slave window, 2MB strappable (rev 3) */
 PIN 75  = GREQ;   /* from Z280 pin 30: multimicro grant request (rev 2) */
 PIN 76  = GACK;   /* to Z280 pin 32: grant acknowledge (rev 2) */
 PIN 77  = IWANT;   /* to arb GAL: request the bus (rev 2) */
@@ -107,6 +111,7 @@ PIN 36  = S100_INT;   /* backplane interrupt, active low */
 PIN 37  = S100_NMI;   /* backplane NMI, active low */
 PIN 39  = !Z_INT;   /* to Z280 INT-A (active low) */
 PIN 67  = !Z_NMI;   /* to Z280 NMI (active low) */
+PIN 68  = A1_EFF;   /* to 74F139 A1: Z_OWN ? A21 : W (rev 3) */
 
 /* *************** STATE REGISTER *************** */
 node S1;   /* master FSM: IDLE=00, SYNC=01, DATA=10 */
@@ -115,6 +120,7 @@ node CNT3; /* reset-config hold counter (15 clocks after reset) */
 node CNT2;
 node CNT1;
 node CNT0;
+node BOOTED; /* 0 until the first memory write, 1 after (boot ROM overlay, rev 3) */
 
 /* SPLIT is a registered OUTPUT pin (pin 73), not a buried node - it is the
  * 16->8 split flag, sent to CPLD 1 so it can drive S-100 A0. */
@@ -133,6 +139,8 @@ CNT3.AR = !Z_RESET;
 CNT2.AR = !Z_RESET;
 CNT1.AR = !Z_RESET;
 CNT0.AR = !Z_RESET;
+BOOTED.CK = Z_CLK_IN;
+BOOTED.AR = !Z_RESET;   /* 0 at reset: ROM aliased at 0 */
 
 /* *************** COMBINATIONAL DECODE *************** */
 MEM   = Z_ST3 & !Z_ST2 & !Z_ST1;              /* 1000/1001 memory */
@@ -192,7 +200,9 @@ CPLD_pSTVAL  = S0 & !S1;
 CPLD_pDBIN   = S1 & !S0 & !WRITE;
 CPLD_pWR     = S1 & !S0 & WRITE;
 
-Z_WAIT       = S100_ACTIVE # HOLD;
+/* Hold the Z280 through an I/O arbitration too: unlike shared memory (GREQ
+ * self-holds the Z280), an I/O cycle needs WAIT stretched until the grant. */
+Z_WAIT       = S100_ACTIVE # HOLD # (TMA & IO & !MINE);
 
 CPLD_sMEMR   = MEM & S100_ACTIVE;
 CPLD_sWO     = WRITE & S100_ACTIVE;
@@ -215,12 +225,21 @@ CPLD_pDBIN.OE  = S100_ACTIVE;
 CPLD_pWR.OE    = S100_ACTIVE;
 
 /* *************** LOCAL MEMORY *************** */
-MEM_CE0 = (MEM & SRAM_WIN & Z_OWN & !A20)
-        # (SLAVE & SLAVE_WIN & CPLD_sMEMR & !A20);
-MEM_CE1 = (MEM & SRAM_WIN & Z_OWN &  A20)
-        # (SLAVE & SLAVE_WIN & CPLD_sMEMR &  A20);
+/* Bank select is off-chip (rev 3): RAM_SELECT gates a 74F139 whose
+ * A1:A0 = A1_EFF:A20 decode the four SRAM banks. The high bit is muxed:
+ * A1_EFF = Z_OWN ? A21 : W, so the Z280 sees its full 4 MB (A21:A20) while a
+ * bus master sees the 2 MB window that W selects from the 4 MB (W:A20). */
+RAM_SELECT = (MEM & SRAM_WIN & Z_OWN)
+           # (SLAVE & SLAVE_WIN & CPLD_sMEMR);
 
-MEM_OE  = (Z_IE & Z_OWN & SRAM_WIN)
+A1_EFF = (Z_OWN & A21) # (SLAVE & W);
+
+/* Boot ROM overlay (rev 3): BOOTED is 0 until the first memory write. While
+ * 0, the flash answers unconditionally (every 64 KB boundary) and the RAM read
+ * path is held off so it can't fight the ROM. */
+BOOTED.D = BOOTED # (MEM & WRITE);
+
+MEM_OE  = (Z_IE & Z_OWN & SRAM_WIN & BOOTED)
         # (SLAVE & SLAVE_WIN & CPLD_sMEMR & !CPLD_sWO);
 
 MEM_WE_L = (WRITE & Z_DS & (WORD # !LA0) & SRAM_WIN & Z_OWN)
@@ -228,13 +247,15 @@ MEM_WE_L = (WRITE & Z_DS & (WORD # !LA0) & SRAM_WIN & Z_OWN)
 MEM_WE_H = (WRITE & Z_DS & (WORD #  LA0) & SRAM_WIN & Z_OWN)
          # (SLAVE & SLAVE_WIN & CPLD_sMEMR & CPLD_sWO &  BYTE_SEL);
 
-FLASH_CE = MEM & FLASH_WIN & Z_OWN;
-FLASH_OE = Z_IE & FLASH_WIN & Z_OWN;
-FLASH_WE = WRITE & Z_DS & FLASH_WIN & Z_OWN;
+FLASH_CE = MEM & (!BOOTED # FLASH_WIN) & Z_OWN;
+FLASH_OE = Z_IE & (!BOOTED # FLASH_WIN) & Z_OWN;
+FLASH_WE = WRITE & Z_DS & FLASH_WIN & BOOTED & Z_OWN;
 
 /* *************** ARBITRATION (rev 2) *************** */
-/* Outbound, temporary-master role: GREQ -> IWANT -> GAL -> MINE -> GACK. */
-IWANT  = TMA & GREQ;
+/* Outbound, temporary-master role: GREQ -> IWANT -> GAL -> MINE -> GACK.
+ * GREQ/GACK is memory-only (the multimicro shared-memory handshake); the Z280
+ * does NOT assert GREQ for I/O, so we seize the bus on every I/O cycle. */
+IWANT  = TMA & (GREQ # IO);
 GACK   = TMA & MINE;
 
 /* Inbound: request the Z280's bus.

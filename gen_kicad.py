@@ -53,7 +53,6 @@ PARTS["Z280"] = ("U", "Z280 Z-BUS (12 MHz)", "Package_LCC:PLCC-68_THT-Socket",
      ("65","AD10","B"), ("66","A22","O"), ("67","AD11","B"), ("68","AD12","B")])
 
 CPLD_A_IO = [
-    ("Z_AS","I"),
     ("Z_DS","I"),
     ("Z_RW","I"),
     ("Z_BW","I"),
@@ -65,17 +64,19 @@ CPLD_A_IO = [
     ("Z_BUSACK","I"),
     ("Z_CLK_IN","I"),
     ("Z_RESET","I"),
-    ("SLAVE_ONLY","I"),
+    ("MODE","I"),
     ("S100_HOLD","I"),
     ("S100_pRDY","I"),
     ("S100_XRDY","I"),
-    ("S100_ADSB","I"),
-    ("S100_SDSB","I"),
-    ("S100_CDSB","I"),
+    ("S100_INT","I"),
+    ("S100_NMI","I"),
+    ("MINE","I"),
+    ("GREQ","I"),
     ("SRAM_WIN","I"),
     ("FLASH_WIN","I"),
     ("SLAVE_WIN","I"),
-    ("A20","I"),
+    ("A21","I"),
+    ("W","I"),
     ("LA0","I"),
     ("Z_WAIT","O"),
     ("Z_BUSREQ","O"),
@@ -91,8 +92,8 @@ CPLD_A_IO = [
     ("CPLD_pDBIN","O"),
     ("CPLD_pWR","O"),
     ("CPLD_pHLDA","O"),
-    ("MEM_CE0","O"),
-    ("MEM_CE1","O"),
+    ("RAM_SELECT","O"),
+    ("A1_EFF","O"),
     ("MEM_OE","O"),
     ("MEM_WE_L","O"),
     ("MEM_WE_H","O"),
@@ -100,9 +101,10 @@ CPLD_A_IO = [
     ("FLASH_OE","O"),
     ("FLASH_WE","O"),
     ("CFG_OE","O"),
-    ("S100_A_OE","O"),
-    ("S100_S_OE","O"),
-    ("S100_C_OE","O"),
+    ("GACK","O"),
+    ("IWANT","O"),
+    ("Z_INT","O"),
+    ("Z_NMI","O"),
     ("MST_RD","O"),
     ("MST_WR","O"),
     ("SLV_RD","O"),
@@ -135,11 +137,11 @@ _A_PIN = {
     "MEM_WE_H": 4,
     "MEM_OE": 5,
     "MEM_WE_L": 6,
-    "MEM_CE1": 8,
-    "A20": 9,
-    "MEM_CE0": 10,
+    "W": 8,
+    "A21": 9,
+    "RAM_SELECT": 10,
     "CFG_OE": 11,
-    "Z_AS": 12,
+    "MINE": 12,
     "TDI": 14,
     "Z_DS": 15,
     "Z_RW": 16,
@@ -159,9 +161,9 @@ _A_PIN = {
     "S100_HOLD": 33,
     "S100_pRDY": 34,
     "S100_XRDY": 35,
-    "S100_ADSB": 36,
-    "S100_SDSB": 37,
-    "S100_CDSB": 39,
+    "S100_INT": 36,
+    "S100_NMI": 37,
+    "Z_INT": 39,
     "S100_SIXTN": 40,
     "CPLD_pSYNC": 41,
     "CPLD_pSTVAL": 44,
@@ -181,15 +183,17 @@ _A_PIN = {
     "SPLIT": 61,
     "TCK": 62,
     "LA0": 63,
-    "SLAVE_ONLY": 64,
+    "MODE": 64,
     "CPLD_sXTRQ": 65,
-    "S100_A_OE": 67,
-    "S100_S_OE": 68,
-    "S100_C_OE": 69,
+    "Z_NMI": 67,
+    "A1_EFF": 68,
     "SRAM_WIN": 70,
     "TDO": 71,
     "FLASH_WIN": 73,
     "SLAVE_WIN": 74,
+    "GREQ": 75,
+    "GACK": 76,
+    "IWANT": 77,
     "FLASH_OE": 79,
     "FLASH_WE": 80,
     "FLASH_CE": 81,
@@ -204,8 +208,12 @@ CPLD_B_IO = [
     ("Z_AS","I"),
     ("Z_DS","I"),
     ("S100_DODSB","I"),
-    ("S100_INT","I"),
-    ("S100_NMI","I"),
+    ("S100_ADSB","I"),
+    ("S100_SDSB","I"),
+    ("S100_CDSB","I"),
+    ("MODE","I"),
+    ("MINE","I"),
+    ("Z_RESET","I"),
     ("MST_RD","I"),
     ("MST_WR","I"),
     ("SLV_RD","I"),
@@ -217,8 +225,9 @@ CPLD_B_IO = [
     ("LATCH_LE","O"),
     ("DO_DIR","O"),
     ("DI_DIR","O"),
-    ("Z_INT","O"),
-    ("Z_NMI","O"),
+    ("S100_A_OE","O"),
+    ("S100_S_OE","O"),
+    ("S100_C_OE","O"),
     ("A0","B"),
     ("A1","O"),
     ("A2","O"),
@@ -304,15 +313,20 @@ _B_PIN = {
     "CPLD_DI7": 52,
     "Z_AS": 54,
     "Z_DS": 55,
-    "Z_INT": 56,
-    "Z_NMI": 57,
+    "Z_RESET": 56,
     "DO_DIR": 58,
     "DI_DIR": 60,
     "S100_DODSB": 61,
     "TCK": 62,
-    "S100_INT": 63,
-    "S100_NMI": 64,
+    "MINE": 63,
+    "S100_ADSB": 65,
+    "S100_SDSB": 67,
+    "S100_CDSB": 68,
+    "S100_A_OE": 69,
+    "S100_S_OE": 70,
     "TDO": 71,
+    "S100_C_OE": 73,
+    "MODE": 74,
     "AD10": 75,
     "AD11": 76,
     "AD12": 77,
@@ -405,10 +419,20 @@ PARTS["74F138"] = ("U", "74F138", "Package_DIP:DIP-16_W7.62mm",
      ("7","Y7","O"),("8","GND","W"),("9","Y6","O"),("10","Y5","O"),("11","Y4","O"),("12","Y3","O"),
      ("13","Y2","O"),("14","Y1","O"),("15","Y0","O"),("16","+5V","W")])
 
+# 74F139 dual 2-to-4 decoder: SRAM bank select for the 4 MB array. /E1 =
+# RAM_SELECT (active low, from the control CPLD), A1:A0 = A21:A20 -> /Y0-/Y3 =
+# CE0-CE3. Decoder 2 is unused (/E2 tied high to disable it).
+PARTS["74F139"] = ("U", "74F139", "Package_DIP:DIP-16_W7.62mm",
+    [("1","E1","I"),("2","A01","I"),("3","A11","I"),
+     ("4","Y01","O"),("5","Y11","O"),("6","Y21","O"),("7","Y31","O"),
+     ("8","GND","W"),
+     ("9","Y32","O"),("10","Y22","O"),("11","Y12","O"),("12","Y02","O"),
+     ("13","A12","I"),("14","A02","I"),("15","E2","I"),("16","+5V","W")])
+
 # 74F521 8-bit identity comparator (P=Q, /P=Q output). Used for FLASH_WIN
-# (hardwired 0xF0) and SLAVE_WIN (hardwired 0x000000-0x1FFFFF, the same 2 MB
-# window as SRAM_WIN); taps the inboard A16-23 net so it sees the TMA's address
-# in slave mode too.
+# (hardwired 0xF0) and SLAVE_WIN (hardwired 0x000000-0x3FFFFF, the 4 MB window:
+# A22:A23 matched, A21 self-matched/ignored); taps the inboard A16-23 net so it
+# sees the TMA's address in slave mode too.
 PARTS["74F521"] = ("U", "74F521", "Package_DIP:DIP-20_W7.62mm",
     [("1","G","I"),("2","P0","I"),("3","Q0","I"),("4","P1","I"),("5","Q1","I"),
      ("6","P2","I"),("7","Q2","I"),("8","P3","I"),("9","Q3","I"),("10","GND","W"),
@@ -430,6 +454,37 @@ PARTS["C"] = ("C", "0.1uF", "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P2.50mm",
 
 PARTS["DS1813"] = ("U", "DS1813", "Package_TO_SOT_THT:TO-92_Inline",
     [("1","GND","W"),("2","RST","OC"),("3","VCC","W")])
+
+# MAX708 reset supervisor (replaces the DS1813 in rev 2): VCC monitor = power-on
+# reset, MR (manual reset, active low) = wire-OR of S100_RESET + SLAVE_CLR + the
+# doorbell Z_RST, RESET# (active low) drives Z_RESET (~200 ms). PFI/PFO unused.
+PARTS["MAX708"] = ("U", "MAX708", "Package_DIP:DIP-8_W7.62mm",
+    [("1","MR","I"),("2","VCC","W"),("3","GND","W"),("4","PFI","I"),
+     ("5","PFO","O"),("6","NC","P"),("7","RESET","O"),("8","RESET","O")])
+
+# Octal D-type register (edge-triggered) for the two mailbox bytes - one per
+# direction. CLK = the write strobe (sOUT/MS_PRT or the Z280's local write),
+# Q = read back by the other side.
+PARTS["74F574"] = ("U", "74F574", "Package_DIP:DIP-20_W7.62mm",
+    [("1","OE","I"),("2","D0","I"),("3","D1","I"),("4","D2","I"),
+     ("5","D3","I"),("6","D4","I"),("7","D5","I"),("8","D6","I"),
+     ("9","D7","I"),("10","GND","W"),("11","CLK","I"),("12","Q0","O"),
+     ("13","Q1","O"),("14","Q2","O"),("15","Q3","O"),("16","Q4","O"),
+     ("17","Q5","O"),("18","Q6","O"),("19","Q7","O"),("20","+5V","W")])
+
+# ATF22V10 doorbell/mailbox decode (z280-s100-doorbell.pld): 4-port decode,
+# INT_B/MS_FULL/SM_FULL status FFs, Z_RST reset trigger. Only the used pins are
+# listed; the rest float.
+DOORBELL_GAL = [
+    ("1","Z_CLK","I"), ("2","MATCH","I"), ("3","A0","I"), ("4","A1","I"),
+    ("5","sOUT","I"), ("6","sINP","I"), ("7","Z_RESET","I"), ("8","INT_CLR","I"),
+    ("9","MS_CLR","I"), ("10","A2","I"), ("11","LOC_W0","I"), ("12","GND","W"),
+    ("13","LOC_W1","I"),
+    ("14","INT_B","O"), ("15","MS_FULL","O"), ("16","SM_FULL","O"), ("17","Z_RST","O"),
+    ("18","MS_SET","O"), ("19","SM_SET","O"), ("20","W","O"),
+    ("24","+5V","W"),
+]
+PARTS["DOORBELL"] = ("U", "ATF22V10 (doorbell)", "Package_DIP:DIP-24_W15.24mm", DOORBELL_GAL)
 
 PARTS["LM7805"] = ("U", "LM7805", "Package_TO_SOT_THT:TO-220-3_Horizontal_TabDown",
     [("1","IN","I"),("2","GND","W"),("3","OUT","O")])
@@ -719,6 +774,9 @@ def s100_nets():
             nets[num] = nm
         elif nm == "NC":
             continue
+        elif nm in ("RESET", "SLAVE_CLR"):
+            # RESET* and SLAVE_CLR* wire-OR onto the MAX708 MR input.
+            nets[num] = "MR"
         else:
             nets[num] = "S100_" + nm
     return nets
@@ -743,6 +801,7 @@ def single_sheet():
          "14":"Z_ST0","15":"Z_ST1","21":"Z_ST2","22":"Z_ST3",
          "17":"Z_IE","16":"Z_OE","29":"Z_WAIT","28":"Z_BUSREQ","31":"Z_BUSACK",
          "37":"Z_INT","39":"Z_NMI","38":"Z_RESET",
+         "36":"Z280_INT_B","26":"Z280_INT_C","30":"GREQ","32":"GACK",
          "50":"XTALI","49":"XTALO","47":"Z_CLK",
          "34":"+5V","46":"Z_TXD","48":"Z_RXD",
          "18":"+5V","19":"+5V",
@@ -768,13 +827,13 @@ def single_sheet():
                   "12":"A11","13":"A12","14":"A13","15":"A14","16":"A15",
                   "20":"+5V"}))
     # Address decode (external, on the inboard A16-23 net so slave mode works):
-    # 74F138 A21-23 -> SRAM_WIN; 74F521 (0xF0) -> FLASH_WIN; 74F521 (hardwired 2MB) -> SLAVE_WIN.
+    # 74F138 A22-23 -> SRAM_WIN (4MB); 74F521 (0x40) -> FLASH_WIN; 74F521 (hardwired 2MB) -> SLAVE_WIN.
     inst.append(emit_symbol_instance("74F138", "U22", 360.0, 60.0,
-                 {"1":"A21","2":"A22","3":"A23","4":"GND","5":"GND","6":"+5V",
+                 {"1":"GND","2":"A22","3":"A23","4":"GND","5":"GND","6":"+5V",
                   "15":"SRAM_WIN","8":"GND","16":"+5V"}))
     inst.append(emit_symbol_instance("74F521", "U23", 360.0, 100.0,
                  {"1":"GND","2":"GND","4":"GND","6":"GND","8":"GND",
-                  "12":"+5V","14":"+5V","16":"+5V","18":"+5V",
+                  "12":"GND","14":"GND","16":"+5V","18":"GND",
                   "3":"A16","5":"A17","7":"A18","9":"A19","11":"A20","13":"A21","15":"A22","17":"A23",
                   "19":"FLASH_WIN","10":"GND","20":"+5V"}))
     inst.append(emit_symbol_instance("74F521", "U24", 360.0, 140.0,
@@ -791,6 +850,23 @@ def single_sheet():
                  sram_nets([f"AD{i}" for i in range(8,16)], "MEM_WE_L", "MEM_CE1")))
     inst.append(emit_symbol_instance("IS61C5128AS", "U9", 231.14, 177.8,
                  sram_nets([f"AD{i}" for i in range(8)], "MEM_WE_H", "MEM_CE1")))
+    # Banks 2 and 3 (4 MB total): U36/U38 = even/LO on AD8-15, U37/U39 = odd/HI
+    # on AD0-7. CE2/CE3 come from the 74F139 (U40), not the control CPLD.
+    inst.append(emit_symbol_instance("IS61C5128AS", "U36", 231.14, 228.6,
+                 sram_nets([f"AD{i}" for i in range(8,16)], "MEM_WE_L", "MEM_CE2")))
+    inst.append(emit_symbol_instance("IS61C5128AS", "U37", 231.14, 279.4,
+                 sram_nets([f"AD{i}" for i in range(8)], "MEM_WE_H", "MEM_CE2")))
+    inst.append(emit_symbol_instance("IS61C5128AS", "U38", 231.14, 330.2,
+                 sram_nets([f"AD{i}" for i in range(8,16)], "MEM_WE_L", "MEM_CE3")))
+    inst.append(emit_symbol_instance("IS61C5128AS", "U39", 231.14, 381.0,
+                 sram_nets([f"AD{i}" for i in range(8)], "MEM_WE_H", "MEM_CE3")))
+    # 4 MB bank select: 74F139 decodes A1_EFF:A20 into CE0-CE3, gated by
+    # RAM_SELECT from the control CPLD. A1_EFF = Z_OWN ? A21 : W (the control
+    # CPLD muxes the high bank bit). Decoder 2 is unused (E2 tied high).
+    inst.append(emit_symbol_instance("74F139", "U40", 294.64, 25.4,
+                 {"1":"RAM_SELECT","2":"A20","3":"A1_EFF",
+                  "4":"MEM_CE0","5":"MEM_CE1","6":"MEM_CE2","7":"MEM_CE3",
+                  "8":"GND","13":"GND","14":"GND","15":"+5V","16":"+5V"}))
     # Boot EEPROM: 2x AT28C256 = 32K x 16 = 64 KB at F00000-F0FFFF. Two parts
     # because the Z-BUS has no dynamic bus sizing, not because we need the size.
     # The old density jumpers are gone -- a fixed 32Kx8 part has nothing to strap.
@@ -823,8 +899,7 @@ def single_sheet():
     # the DIP-8 / DIP-14 positions and are shorted by the netlist.
     inst.append(emit_symbol_instance("Oscillator", "Y2", 231.14, 232.41,
                  {"4":"GND","7":"GND","5":"XTALI","8":"XTALI","14":"+5V"}))
-    inst.append(emit_symbol_instance("DS1813", "U13", 294.64, 173.99,
-                 {"1":"GND","2":"Z_RESET","3":"+5V"}))
+    # Reset supervisor: DS1813 replaced by the MAX708 (U13) in rev 2 - see below.
     inst.append(emit_symbol_instance("MAX232", "U14", 421.64, 177.8,
                  {"1":"MAX_C1P","2":"MAX_VP","3":"MAX_C1M","4":"MAX_C2P",
                   "5":"MAX_C2M","6":"MAX_VM","7":"NC","8":"NC","9":"NC",
@@ -903,6 +978,82 @@ def single_sheet():
     # JTAG programming header: TCK/TMS parallel, TDI->A->B->TDO chained
     inst.append(emit_symbol_instance("JTAG", "J9", 502.92, 292.1,
                  {"1":"JTAG_TCK","2":"JTAG_TMS","3":"JTAG_TDI","4":"JTAG_TDO","5":"GND","6":"+5V"}))
+
+    # ---- running-slave: doorbell / mailbox (rev 2) ----
+    # Doorbell range compare: 74F521 matches S100 A3-A7 against 5 jumpers
+    # (A2 moves to the function decode for the 8-port range). P5-P7/Q5-Q7 tied
+    # low so only the 5 range bits matter.
+    inst.append(emit_symbol_instance("74F521", "U28", 200.66, 342.9,
+                 {"1":"GND",
+                  "2":"S100_A3","4":"S100_A4","6":"S100_A5","8":"S100_A6","12":"S100_A7","14":"GND",
+                  "3":"DR_0","5":"DR_1","7":"DR_2","9":"DR_3","11":"DR_4","13":"GND",
+                  "15":"GND","16":"GND","17":"GND","18":"GND",
+                  "19":"DOORBELL_MATCH",
+                  "10":"GND","20":"+5V"}))
+    # Doorbell range jumpers (5 bits): HIGH=+5V, SEL=DR_n, LOW=GND.
+    for _i in range(5):
+        inst.append(emit_symbol_instance("JP3", "J%d" % (12 + _i), 120.0, 342.9 + _i * 5.08,
+                     {"1":"+5V","2":"DR_%d" % _i,"3":"GND"}))
+    # Doorbell decode GAL (ATF22V10): 4-port decode + status FFs + reset trigger.
+    inst.append(emit_symbol_instance("DOORBELL", "U29", 360.68, 342.9,
+                 {"1":"Z_CLK","2":"DOORBELL_MATCH","3":"S100_A0","4":"S100_A1",
+                  "5":"S100_sOUT","6":"S100_sINP","7":"Z_RESET","8":"CLEAR_SEL","9":"BYTE_SEL",
+                  "10":"S100_A2","11":"LOC_W0","13":"LOC_W1",
+                  "12":"GND",
+                  "14":"Z280_INT_B","15":"Z280_INT_C","16":"SM_FULL","17":"MR",
+                  "18":"MS_SET","19":"SM_SET","20":"W",
+                  "24":"+5V"}))
+    # Mailbox byte latches, one per direction (74F574). CLK = the write strobe,
+    # which the doorbell GAL emits as MS_SET / SM_SET.
+    inst.append(emit_symbol_instance("74F574", "U30", 200.66, 431.8,
+                 {"1":"GND",
+                  "2":"S100_DO0","3":"S100_DO1","4":"S100_DO2","5":"S100_DO3",
+                  "6":"S100_DO4","7":"S100_DO5","8":"S100_DO6","9":"S100_DO7",
+                  "11":"MS_SET",
+                  "12":"MS_BYTE0","13":"MS_BYTE1","14":"MS_BYTE2","15":"MS_BYTE3",
+                  "16":"MS_BYTE4","17":"MS_BYTE5","18":"MS_BYTE6","19":"MS_BYTE7",
+                  "10":"GND","20":"+5V"}))
+    inst.append(emit_symbol_instance("74F574", "U31", 360.68, 431.8,
+                 {"1":"GND",
+                  "2":"AD0","3":"AD1","4":"AD2","5":"AD3",
+                  "6":"AD4","7":"AD5","8":"AD6","9":"AD7",
+                  "11":"SM_SET",
+                  "12":"SM_BYTE0","13":"SM_BYTE1","14":"SM_BYTE2","15":"SM_BYTE3",
+                  "16":"SM_BYTE4","17":"SM_BYTE5","18":"SM_BYTE6","19":"SM_BYTE7",
+                  "10":"GND","20":"+5V"}))
+    # MAX708 reset supervisor (replaces DS1813): MR = wire-OR of the reset sources.
+    inst.append(emit_symbol_instance("MAX708", "U13", 200.66, 254.0,
+                 {"1":"MR","2":"+5V","3":"GND","4":"+5V","7":"Z_RESET"}))
+    # MR pull-up: S100_RESET + SLAVE_CLR + the doorbell Z_RST all wire-OR onto MR.
+    inst.append(emit_symbol_instance("R", "R5", 152.4, 254.0, {"1":"MR","2":"+5V"}))
+
+    # ---- local register block (rev 2): the Z280's memory-mapped reads ----
+    # Decode: 74F521 compares A16-A23 against 0x60 (the 6 MB register window,
+    # safely above a possible 4 MB RAM expansion).
+    inst.append(emit_symbol_instance("74F521", "U32", 200.66, 254.0,
+                 {"1":"GND",
+                  "2":"A16","4":"A17","6":"A18","8":"A19","12":"A20","14":"A21","16":"A22","18":"A23",
+                  "3":"GND","5":"GND","7":"GND","9":"GND","11":"GND","13":"+5V","15":"+5V","17":"GND",
+                  "19":"REG_BLOCK",
+                  "10":"GND","20":"+5V"}))
+    # Register select: 74F138 decodes A1:A0 within the register window (read only).
+    inst.append(emit_symbol_instance("74F138", "U33", 200.66, 127.0,
+                 {"1":"A0","2":"A1","3":"A2",
+                  "4":"GND","5":"GND","6":"REG_BLOCK",
+                  "7":"NC","9":"NC","10":"NC","11":"LOC_W1","12":"LOC_W0","13":"CLEAR_SEL",
+                  "14":"STATUS_SEL","15":"BYTE_SEL",
+                  "8":"GND","16":"+5V"}))
+    # Read driver: MS_BYTE -> AD0-7 (gated by the byte select), and the 2-bit
+    # status -> AD0-1 (gated by the status select, via the second buffer).
+    inst.append(emit_symbol_instance("74HCT244", "U34", 200.66, 50.8,
+                 {"1":"BYTE_SEL","2":"MS_BYTE0","4":"MS_BYTE1","6":"MS_BYTE2","8":"MS_BYTE3",
+                  "11":"MS_BYTE4","13":"MS_BYTE5","15":"MS_BYTE6","17":"MS_BYTE7",
+                  "3":"AD7","5":"AD6","7":"AD5","9":"AD4","12":"AD3","14":"AD2","16":"AD1","18":"AD0",
+                  "19":"BYTE_SEL","10":"GND","20":"+5V"}))
+    inst.append(emit_symbol_instance("74HCT244", "U35", 330.0, 50.8,
+                 {"1":"STATUS_SEL","2":"MS_FULL","4":"SM_FULL","6":"W",
+                  "18":"AD0","16":"AD1","14":"AD2",
+                  "19":"STATUS_SEL","10":"GND","20":"+5V"}))
     return emit_sheet_file("Z280 S-100 CPU card", inst)
 
 def emit_pro():
@@ -925,15 +1076,18 @@ routed and fabricated; the notes below are the as-built reference.
   7/19/32/42/47/59/72/82. The four DEDICATED INPUT pins are GCLR = 1 (global
   clear, active low), OE2 = 2, GCLK1 = 83, OE1 = 84 — GCLR/OE1/OE2 are tied to
   +5V (inactive) on both CPLDs; GCLK1 = 83 carries Z_CLK_IN. Regular signals
-  must NOT sit on pins 1/2/84. Control sits at 59/64 I/O; the data CPLD was at
-  62/64 until the A3–A15 latch moved back out to two 74F573s (freeing pins for
-  the DO_DIR/DI_DIR buffer controls), so it now sits near 50/64. The control
-  CPLD still declares Z_AS (pin 12) as a spare input — unused since LATCH_LE
-  moved to the data CPLD; the fitter drops it and pin 12 stays high-Z.
-- **Unused CPLD I/O (free pins for a board rev 2):** data CPLD U5 has **65, 67,
-  68, 69, 70, 73, 74** free (7). Control CPLD U4 has **75, 76, 77** free (3),
-  plus **pin 12 (Z_AS)** as a spare — declared but unused, so high-Z in the
-  JEDEC; its trace is routed on this rev but can be re-purposed on the next.
+  must NOT sit on pins 1/2/84. Control CPLD sits at 60/64 I/O (rev 3).
+- **Unused CPLD I/O:** control CPLD U4 has **8, 9, 68, 69** free (4). Pins 8/9
+  were freed by moving the SRAM bank select out to a 74F139 (rev 3); 68/69 have
+  been free since the rev-2 pin re-balance.
+
+## Memory (rev 3, 4 MB)
+- 8× IS61C5128AS-25 = 2M×16 = 4 MB, four banks (CE0–CE3, U6–U9 + U36–U39).
+  Bank select A21:A20 is decoded by a 74F139 (U40) gated by RAM_SELECT from the
+  control CPLD — the old A20 input and CE0/CE1 CPLD outputs are gone.
+- SRAM_WIN (74F138 U22) is the 4 MB window 000000–3FFFFF: A22:A23 matched, A21
+  tied low. SLAVE_WIN (74F521 U24) is hardwired to the same 4 MB window:
+  A22:A23 matched, A21 self-matched/ignored.
 - **AT28C256 flash (U10/U11)**: 28-pin DIP, JEDEC 28C256 layout (A14=1, A12=2,
   A7=3 … A0=10, DQ0=11 … DQ7=19, CE#=20, A10=21, OE#=22, A11=23, A9=24, A8=25,
   A13=26, WE#=27, VCC=28, VSS=14). Word-addressed (flash A_n = byte A_{n+1}),
