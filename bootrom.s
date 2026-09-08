@@ -1,63 +1,105 @@
-;==============================================================================
-;  bootrom.s  --  Z280 S-100 CPU card boot ROM   (64 KB flash @ 0x400000)
+; ============================================================================
+;  bootrom.s  --  Z280 S-100 CPU card boot ROM (64 KB flash @ physical 0x400000)
 ;
-;  Assembled at 0x400000 (the flash's fixed physical address).
+;  The Z280 is a 16-bit CPU: the program counter and all logical addresses live
+;  in a 64K logical space (0000H-FFFFH).  The on-chip MMU translates that into
+;  the 24-bit PHYSICAL space (16 MB) through 16 page descriptor registers (PDRs).
 ;
-;  Boot hardware (rev 3): the control CPLD holds BOOTED=0 at reset, which
-;  aliases the flash onto EVERY 64 KB boundary.  So the Z280's reset fetch
-;  (PC=0) lands in ROM[0], and the whole 64 KB is reachable by a plain jump.
-;  The FIRST memory write clears BOOTED, dropping the alias; from that instant
-;  the flash answers only at 0x400000-0x40FFFF.
+;  THIS BUILD runs with program/data separation enabled (SPD): the 64K logical
+;  space is 8 pages of 8K, and instruction fetches (plus PC-relative data) use
+;  PDRs 8-15 while ordinary data accesses use PDRs 0-7.  Both sets point at the
+;  same 64K flash so the CPU sees a unified program+data image.
 ;
-;  Boot order:
-;    1. reset vector (ROM[0], executed at PC=0) jumps into the 0x400000 range
-;    2. the MMU is configured so 0x400000 is a valid, jumpable segment
-;    3. the first memory write clears BOOTED -- the write hits the flash chip
-;       as a no-op (/WE is held off while BOOTED=0) but MEM&WRITE is what the
-;       CPLD watches
-;    4. execution continues in the now-decoded flash, already in the 0x400000
-;       range, so the instruction stream is never disturbed
-;==============================================================================
+;  At RESET the MMU is DISABLED: logical addresses pass straight through to
+;  physical A0-A15 with A16-A23 = 0, so the reset fetch at logical 0000H lands
+;  on physical 000000H -- exactly where the control CPLD aliases the flash while
+;  BOOTED=0.
+;
+;  This code's whole job is to stand up the MMU so logical 0000H-FFFFH maps
+;  onto physical 400000H-40FFFFH (the flash's real home), then drop the alias
+;  with the first memory write.
+;
+;  MMU facts (Z280 MPU manual ch.7):
+;   - 16 PDRs per mode (system + user).  With SPD: 8K pages, PDR 0-7 = data,
+;     PDR 8-15 = program; the page-frame field's LSB (PDR bit 4) is unused.
+;   - PDR = [15:5] 11-bit page frame (physical A23-A13) | [4] unused
+;           | [3:0] M,C,WP,V.
+;   - logical[15:13] selects the PDR; logical[12:0] is the in-page offset.
+;   - programmed via I/O page FF:  Master Control   FFxxF0H (STE=14, SPD=15)
+;                                  PDR Pointer      FFxxF1H (byte, 00-1FH)
+;                                  Block Move       FFxxF4H (word, auto-steps)
+;   - at reset the MMU is disabled and the I/O Page register is 0.
+; ============================================================================
 
-        ORG     0x400000
+        ORG     0000H           ; assembled in the 64K logical space
 
-; ---- reset vector ----------------------------------------------------------
-; Executed at PC=0 (the flash is aliased there while BOOTED=0).  Jump into the
-; flash's own address range so the PC matches the assembled addresses.
-RESET:  JP      START
+; ---- reset vector: logical 0000H -> physical 000000H (flash aliased) -------
+RESET:
+        ; 1. Set I/O Page = FF so the on-chip MMU registers are reachable.
+        ;    (control register 8 is the I/O Page -- verify against Fig 3-1.)
+        LD      C, 08H          ; control register number = I/O Page
+        LD      HL, 00FFH       ; value FFH (high byte 0)
+        LDCTL   (C), HL         ; I/O Page := FFH
 
-        ORG     0x400008            ; gap after the 3-byte vector
+        ; 2. Point the PDR pointer at system PDR 0 (system set = 10H-1FH).
+        LD      A, 10H          ; system PDR 0
+        LD      BC, 00F1H       ; port FF00F1H (PDR Pointer)
+        OUT     (C), A          ; set the pointer
 
-; ---- boot entry ------------------------------------------------------------
-START:  DI                          ; keep interrupts off until the MMU is live
+        ; 3. Block-write 16 descriptors: 8 data (PDR 0-7) then 8 program
+        ;    (PDR 8-15).  Each 8K page N maps to physical 400000H + N*2000H:
+        ;    descriptor = (200H + N) << 5 | 05H  (05H = C cacheable + V valid).
+        LD      HL, PDR_TABLE   ; descriptor table lives in the flash image
+        LD      BC, 10F4H       ; B = 16 words, C = Block Move port FF00F4H
+        OTIRW                   ; write 16 descriptors, pointer auto-increments
 
-        ; ---- 1. MMU setup: make 0x400000 (and RAM) addressable -------------
-        ; The Z280's memory management is programmed through LDCTL.  Bring up
-        ; a flat 1:1 map first so both the 0x400000 flash segment and the
-        ; 0x000000 RAM segment are reachable, then switch to the real map
-        ; after the first write.  Exact registers are firmware-specific.
-        LDCTL   (MSR), A            ; clear Master Status / MMU off (illustrative)
-        ; ... load segment/page-table registers for the chosen map ...
+        ; 4. Enable the MMU with program/data separation:
+        ;    STE (System Translate Enable) = bit 14, SPD (Separation) = bit 15.
+        LD      HL, 0C000H      ; bits 14 and 15 set
+        LD      BC, 00F0H       ; port FF00F0H (Master Control)
+        OUTW    (C), HL         ; MMU on: logical 0-FFFFH -> physical 400000-40FFFFH
 
-        ; ---- 2. stack at the top of the 4 MB RAM ---------------------------
-        LD      SP, 0x3FFE          ; word stack, just under the flash segment
+        ; From here instruction fetches use the program PDRs and data accesses
+        ; the data PDRs, both resolving to the same flash at 400000H.
 
-        ; ---- 3. FIRST WRITE: this CALL's PUSH clears BOOTED ----------------
-        ; The push is the first write cycle.  It lands on the flash (no-op,
-        ; /WE held off) and on the RAM (harmless), but MEM&WRITE is what drops
-        ; the alias.  From here the flash is only at 0x400000, and we are
-        ; already running there.
-        CALL    INIT                ; PUSH return addr = first write -> BOOTED=1
+        ; 5. First memory write clears BOOTED, dropping the flash alias.  The
+        ;    CALL's push is that write: FLASH_WE is held off while BOOTED=0, so
+        ;    it is a no-op on the flash, but the CPLD sees MEM&WRITE and sets
+        ;    BOOTED.  The MMU already maps us onto physical 400000H, so the
+        ;    instruction stream is continuous.
+        CALL    INIT
 
-        JP      MAIN                ; RET from INIT resumes here
+        JP      MAIN
 
-; ---- low-level init (the alias is already dropped) -------------------------
-INIT:   ; RAM is now fully visible at 0x000000-0x3FFFFF.
-        ; ... size/test RAM, copy vectors into low RAM, load the real map ...
+; ---- page descriptor table: 8 data pages + 8 program pages, 8K each -------
+;   (both halves map the same flash: logical page N -> physical 400000H+N*2000H)
+PDR_TABLE:
+        DEFW    4005H           ; data  page 0 -> 400000H
+        DEFW    4025H           ; data  page 1 -> 402000H
+        DEFW    4045H           ; data  page 2 -> 404000H
+        DEFW    4065H           ; data  page 3 -> 406000H
+        DEFW    4085H           ; data  page 4 -> 408000H
+        DEFW    40A5H           ; data  page 5 -> 40A000H
+        DEFW    40C5H           ; data  page 6 -> 40C000H
+        DEFW    40E5H           ; data  page 7 -> 40E000H
+        DEFW    4005H           ; prog  page 0 -> 400000H
+        DEFW    4025H           ; prog  page 1 -> 402000H
+        DEFW    4045H           ; prog  page 2 -> 404000H
+        DEFW    4065H           ; prog  page 3 -> 406000H
+        DEFW    4085H           ; prog  page 4 -> 408000H
+        DEFW    40A5H           ; prog  page 5 -> 40A000H
+        DEFW    40C5H           ; prog  page 6 -> 40C000H
+        DEFW    40E5H           ; prog  page 7 -> 40E000H
+
+; ---- low-level init (the flash alias is already dropped) -------------------
+INIT:   ; Physical RAM is at 000000H-3FFFFFH; the flash is now only at
+        ; 400000H-40FFFFH.  Set up the real page map (RAM pages + I/O), the
+        ; system stack, then hand off.
         RET
 
 ; ---- main ------------------------------------------------------------------
-MAIN:   ; ... enable the MMU, hand off to the kernel ...
+MAIN:
+        ; ... bring up the OS ...
         HALT
 
         END
